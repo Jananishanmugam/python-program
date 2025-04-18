@@ -1,0 +1,37 @@
+1. Drop_Duplicates:
+
+df.drop_duplicates() # drop any column duplicates
+
+data.drop_duplicates(subset="First Name", keep=False, inplace=True) 
+#rows having the same First Name are removed 
+
+2. Modify columns:
+df["salary"]=df["salary"]*2
+
+3.Rename columns:
+
+	#using dict
+	dct = {'test':'TEST','num':'Number'}
+	df.rename(columns=dct,inplace=True)
+
+	#using list
+	df.columns = ['TEST','Number']
+
+4.Change the datatype:
+
+# converting all columns to string type
+df = df.astype(str)
+print(df.dtypes)
+
+convert_dict = {'A': int,
+                'C': float
+                }
+ 
+# using dictionary to convert specific columns
+df = df.astype(convert_dict)
+print(df.dtypes)
+
+5. concat:
+
+pd.concat([df1,df2])
+
