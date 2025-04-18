@@ -1,0 +1,154 @@
+1. Logical Operators:
+
+df[df.val > 0.5] #int
+
+       name       ctg      val       val2      
+-------------------------------------------               
+1       John        A       0.67       1                
+3       Mike        B       0.91       5                
+4       Emily       B       0.99       8                
+6       Catlin      B       1.00       3
+
+f[df.name > 'Jane'] #string
+        name       ctg      val       val2       
+-------------------------------------------                
+1       John        A       0.67       1                 
+3       Mike        B       0.91       5 
+
+##############################################################################
+
+2.Multiple Logical Operators
+
+df[(df.val > 0.5) & (df.val2 == 1)]  # and
+
+
+df[(df.val < 0.5) | (df.val2 == 7)]  # or
+
+
+##############################################################################
+
+3.Isin
+
+names = ['John','Catlin','Mike']
+df[df.name.isin(names)]
+
+        name      ctg      val       val2       
+-------------------------------------------                
+1       John       A       0.67       1                 
+3       Mike       B       0.91       5                 
+6     Catlin       B       1.00       3
+
+##############################################################################
+
+4. Str accessor
+
+df[df.name.str.startswith('J')]
+
+        name      ctg      val       val2       
+-------------------------------------------                
+0       Jane       A       0.43       1                 
+1       John       A       0.67       1                 
+5       Jack       C       0.02       7
+
+df[df.name.str.contains('y')]
+
+         name      ctg      val       val2       
+-------------------------------------------                
+2      Ashley       C       0.40       7                 
+4       Emily       B       0.99       8
+
+##############################################################################
+
+5. Query
+
+df.query('ctg == "B" and val > 0.5')
+
+        name      ctg      val      val2       
+-------------------------------------------                
+3       Mike       B       0.91       5                 
+4      Emily       B       0.99       8                 
+6     Catlin       B       1.00       3
+
+##############################################################################
+
+6. Nlargest or Nsmallest
+
+df.nlargest(3, 'val')
+
+        name      ctg      val      val2       
+-------------------------------------------                
+6     Catlin       B       1.00       3                 
+4      Emily       B       0.99       8                 
+3       Mike       B       0.91       5
+
+df.nsmallest(2, 'val2')
+
+        name      ctg      val       val2       
+-------------------------------------------                
+0       Jane       A       0.43       1                 
+1       John       A       0.67       1
+
+##############################################################################
+
+7. Loc and Iloc
+
+Iloc: Select rows or columns using indices
+
+# selecting 0th, 2nd, 4th, and 7th index rows
+=> display(data.iloc[[0, 2, 4, 7]])
+
+     Brand  Year  Kms Driven       City  Mileage
+0   Maruti  2012       50000    Gurgaon       28
+2     Tata  2011       60000     Mumbai       25
+4   Maruti  2012       10000     Mumbai       28
+7     Tata  2018       15000    Chennai       21
+
+
+# selecting rows from 1 to 4 and columns from 2 to 4
+=> display(data.iloc[1: 5, 2: 5])
+
+   Kms Driven    City  Mileage
+1       30000   Delhi       27
+2       60000  Mumbai       25
+3       25000   Delhi       26
+4       10000  Mumbai       28
+
+=> df.iloc[3:5, :] #rows 3 and 4, all columns
+
+
+        name      ctg      val       val2       
+-------------------------------------------                
+3       Mike       B       0.91       5                 
+4      Emily       B       0.99       8
+
+---------------------------------------------------------------------
+Loc: Select rows or columns using labels
+
+=> display(data.loc[(data.Brand == 'Maruti') & (data.Mileage > 25)])
+
+    Brand  Year  Kms Driven       City  Mileage
+0  Maruti  2012       50000    Gurgaon       28
+4  Maruti  2012       10000     Mumbai       28
+
+
+# selecting range of rows from 2 to 5
+=> display(data.loc[2: 5])
+
+
+     Brand  Year  Kms Driven    City  Mileage
+2     Tata  2011       60000  Mumbai       25
+3  Mahindra  2015       25000   Delhi       26
+4   Maruti  2012       10000  Mumbai       28
+5  Hyundai  2016       46000   Delhi       29
+
+
+# updating values of Mileage if Year < 2015
+=> data.loc[(data.Year < 2015), ['Mileage']] = 22
+
+
+=> df.loc[3:5, :] #rows 3 and 4, all columns
+
+        name      ctg      val       val2       
+-------------------------------------------                
+3       Mike       B       0.91       5                 
+4      Emily       B       0.99       8
