@@ -74,6 +74,24 @@
 #         A[j][i],A[i][j] = A[i][j],A[j][i]
 # print(A)
 
+
+arr = [
+    [1, 2, 3],
+    [4, 5, 6],
+    [9, 8, 9]
+]
+l = len(arr)
+
+r_count = 0
+l_count = 0
+for i in range(l):
+    r_count+=arr[i][i]
+
+for i in range(l):
+    l_count+=arr[i][l-i-1]
+
+print(abs(r_count - l_count))
+
 # ###reverse
 # for i in range(l):
 #     A[i] = A[i][::-1]
