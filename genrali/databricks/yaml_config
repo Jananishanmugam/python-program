@@ -1,0 +1,200 @@
+data_source_config:
+  layer: bronze
+  source_type: file
+  source_path: /landing/AUSTRIA/AUSTRIA_CTRL_M/VVS/
+  source_catalogue: true
+  source_file_config:
+    char_encoding: UTF-8
+    format: fixed_width
+    delimiter: 
+    header_footer:
+      drop_first_line: false
+      drop_footer: false
+      has_header_col: 
+        header_check: false
+  primary_key_column: XREF3
+  source_archive_config:
+    archive:
+      enable: true
+      archive_path: VVS
+      retention_period: 3
+data_quality_check:
+  enable: true
+technical_fields:
+  source_date_column:
+  load_timestamp:
+    enable: true
+    target_column: load_timestamp
+  file_name_column:
+    enable: true
+    target_column: file_name
+  line_number:
+    enable: true
+    target_column: line_number
+data_transformation:
+  enable: false
+  check_columns:
+    - column: file_name
+      target_column: file_name
+      transformation:
+        operations: uppercase
+load_config:
+  column_mapping:
+  - source_column: LAND
+    target_column: LAND
+  - source_column: QUELLE
+    target_column: QUELLE
+  - source_column: BEREICH
+    target_column: BEREICH
+  - source_column: ZIEL
+    target_column: ZIEL
+  - source_column: STATUS
+    target_column: STATUS
+  - source_column: TIMESTAMP
+    target_column: TIMESTAMP
+  - source_column: MANDT
+    target_column: MANDT
+  - source_column: TCODE
+    target_column: TCODE
+  - source_column: ABSTKR
+    target_column: ABSTKR
+  - source_column: BLART
+    target_column: BLART
+  - source_column: BUKRS
+    target_column: BUKRS
+  - source_column: WAERS
+    target_column: WAERS
+  - source_column: BUDAT
+    target_column: BUDAT
+  - source_column: MONAT
+    target_column: MONAT
+  - source_column: BLDAT
+    target_column: BLDAT
+  - source_column: XBLNR
+    target_column: XBLNR
+  - source_column: BKTXT
+    target_column: BKTXT
+  - source_column: VBUND
+    target_column: VBUND
+  - source_column: BELNR
+    target_column: BELNR
+  - source_column: NEWBS
+    target_column: NEWBS
+  - source_column: NEWUM
+    target_column: NEWUM
+  - source_column: NEWBK
+    target_column: NEWBK
+  - source_column: WRBTR
+    target_column: WRBTR
+  - source_column: DMBTR
+    target_column: DMBTR
+  - source_column: WMWST
+    target_column: WMWST
+  - source_column: MWSTS
+    target_column: MWSTS
+  - source_column: MWSKZ
+    target_column: MWSKZ
+  - source_column: GSBER
+    target_column: GSBER
+  - source_column: KOSTL
+    target_column: KOSTL
+  - source_column: AUFNR
+    target_column: AUFNR
+  - source_column: VALUT
+    target_column: VALUT
+  - source_column: ZUONR
+    target_column: ZUONR
+  - source_column: SGTXT
+    target_column: SGTXT
+  - source_column: ZLSCH
+    target_column: ZLSCH
+  - source_column: ESRRE
+    target_column: ESRRE
+  - source_column: ESRNR
+    target_column: ESRNR
+  - source_column: HBKID
+    target_column: HBKID
+  - source_column: NAME1
+    target_column: NAME1
+  - source_column: NAME2
+    target_column: NAME2
+  - source_column: STRAS
+    target_column: STRAS
+  - source_column: ORT01
+    target_column: ORT01
+  - source_column: PSTLZ
+    target_column: PSTLZ
+  - source_column: LAND1
+    target_column: LAND1
+  - source_column: REGIO
+    target_column: REGIO
+  - source_column: BANKL
+    target_column: BANKL
+  - source_column: BANKS
+    target_column: BANKS
+  - source_column: BANKN
+    target_column: BANKN
+  - source_column: BKONT
+    target_column: BKONT
+  - source_column: NEWKO
+    target_column: NEWKO
+  - source_column: PRCTR
+    target_column: PRCTR
+  - source_column: FWBAS
+    target_column: FWBAS
+  - source_column: KOART
+    target_column: KOART
+  - source_column: BANKA
+    target_column: BANKA
+  - source_column: PSKTO
+    target_column: PSKTO
+  - source_column: SWIFT
+    target_column: SWIFT
+  - source_column: KONTT
+    target_column: KONTT
+  - source_column: ISCD_ZVSARL_VX
+    target_column: ISCD_ZVSARL_VX
+  - source_column: ISCD_LNDSL_VX
+    target_column: ISCD_LNDSL_VX
+  - source_column: ISCD_GSART_VX
+    target_column: ISCD_GSART_VX
+  - source_column: ISCD_BSART_VX
+    target_column: ISCD_BSART_VX
+  - source_column: ISCD_GZART_VX
+    target_column: ISCD_GZART_VX
+  - source_column: ISCD_SDART_VX
+    target_column: ISCD_SDART_VX
+  - source_column: ISCD_SJAHR_VX
+    target_column: ISCD_SJAHR_VX
+  - source_column: ISCD_MJAHR_VX
+    target_column: ISCD_MJAHR_VX
+  - source_column: ISCD_RSART_VX
+    target_column: ISCD_RSART_VX
+  - source_column: ISCD_FUBER_VX
+    target_column: ISCD_FUBER_VX
+  - source_column: ISCD_BEBER_VX
+    target_column: ISCD_BEBER_VX
+  - source_column: ISCD_BSGRP_VX
+    target_column: ISCD_BSGRP_VX
+  - source_column: BEWAR
+    target_column: BEWAR
+  - source_column: RSTKONTL
+    target_column: RSTKONTL
+  - source_column: XREF1
+    target_column: XREF1
+  - source_column: XREF2
+    target_column: XREF2
+  - source_column: XREF3
+    target_column: XREF3
+  - source_column: load_timestamp
+    target_column: load_timestamp
+  - source_column: file_name
+    target_column: file_name
+  - source_column: line_number
+    target_column: line_number
+  tgt_type: table
+  tgt_table_config:
+    tgt_database_name: fdp
+    tgt_schema_name: curated
+    tgt_table: stg_at_vvs_main
+    write_mode: overwrite
