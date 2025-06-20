@@ -1,0 +1,130 @@
+# Databricks notebook source
+# DBTITLE 1,import and initialize parameters
+from datetime import datetime
+import json
+
+# Create a text widget to capture ADF parameters as a JSON string
+dbutils.widgets.text("adf_params_dict", "")
+
+# Parse the JSON string from the widget into a dictionary
+adf_params_dict = json.loads(dbutils.widgets.get("adf_params_dict"))
+
+# Record the start timestamp of the step
+step_start_ts = datetime.now()
+
+# Extract necessary parameters from the ADF parameters dictionary
+Run_Id = adf_params_dict["run_id"]
+Source_System = adf_params_dict["source_system"]
+stg_table_name = adf_params_dict["curated_tbl"]
+
+# Define the name of the current step
+step_name = dbutils.notebook.entry_point.getDbutils().notebook().getContext().notebookPath().get().split('/')[-1]
+
+# Extract the FDP flow statistics table name from the ADF parameters
+fdp_flow_statistics = adf_params_dict["result_transcription_tables"]["fdp_flow_statistics"]
+
+# Initialize an empty dictionary to store insert script data
+insert_script_dict = {}
+
+# COMMAND ----------
+
+# DBTITLE 1,import logging functions
+# MAGIC %run ../00_generic/00_insert_result_transcription_tables
+
+# COMMAND ----------
+
+# DBTITLE 1,define sql query
+query = (f"""
+INSERT INTO fdp.rdv.RS_POSTING_AT_VVS ( Load_Dts, H_Posting_HK, Invalid_Dts, Run_ID, Source_System, Rec_Src,  Hash_Diff, Country, Posting_Desc, Document_Type, Company_Cd, Document_Dt, Reference_Document_Nbr, Cost_Center, Source_File_Name, Fiscal_Month)
+SELECT DISTINCT
+    current_timestamp() AS Load_Dts,
+	src.H_Posting_HK,
+    '9999-12-31 23:59:59' AS Invalid_Dts, 
+    '{Run_Id}' AS Run_Id,
+    '{Source_System}' AS Source_System,
+    src.Rec_Src,   
+    src.Hash_Diff,
+	src.Country,
+    src.Posting_Desc, 
+	src.Document_Type, 
+    src.Company_Cd,
+    src.Document_Dt,
+    src.Reference_Document_Nbr,
+    src.Cost_Center,
+    src.Source_File_Name, 
+    src.Fiscal_Month
+FROM (SELECT 
+			md5(stg.Source_File_Name) AS H_Posting_HK,
+            stg.Source_File_Name AS Rec_Src,
+            md5(CONCAT(NVL(stg.Country,'~Null~'),
+                 NVL(stg.Posting_Desc,'~Null~'),  
+                 NVL(stg.Document_Type,'~Null~'),  
+                 NVL(stg.Company_Cd,'~Null~'),
+                 NVL(stg.Document_Dt,'1900-01-01'),
+                 NVL(stg.Reference_Document_Nbr,'~Null~'),
+                 NVL(stg.Cost_Center,'~Null~'),
+                 NVL(stg.Fiscal_Month,'~Null~')
+                 )) AS Hash_Diff,
+			stg.Country,
+            stg.Posting_Desc,
+			stg.Document_Type, 
+			stg.Company_Cd,
+            stg.Document_Dt,
+            stg.Reference_Document_Nbr,
+            stg.Cost_Center,
+            stg.Source_File_Name, 
+            stg.Fiscal_Month
+			FROM 
+				(   SELECT 
+					TRIM(REPLACE(LAND,'/','')) AS Country,
+                    TRIM(REPLACE(BKTXT,'/','')) AS Posting_Desc,
+					TRIM(REPLACE(BLART,'/','')) AS Document_Type, 
+					TRIM(REPLACE(BUKRS,'/','')) AS Company_Cd,
+                    TO_DATE(TRIM(REPLACE(BLDAT,'/','')), 'ddMMyyyy') AS Document_Dt,
+                    TRIM(REPLACE(XBLNR,'/','')) AS Reference_Document_Nbr,
+                    TRIM(REPLACE(KOSTL,'/','')) AS Cost_Center,
+                    TRIM(REPLACE(MONAT,'/','')) AS Fiscal_Month,
+					file_name AS Source_File_Name
+					FROM fdp.curated.`{stg_table_name}`) stg ) src
+LEFT OUTER JOIN fdp.rdv.RS_POSTING_AT_VVS tgt
+ON src.H_Posting_HK= tgt.H_Posting_HK
+WHERE tgt.H_Posting_HK IS NULL
+OR (tgt.H_Posting_HK  IS NOT NULL AND src.Hash_Diff <> tgt.Hash_Diff) 
+""")
+
+# COMMAND ----------
+
+# DBTITLE 1,execute the query
+step_status = ""
+step_error = ""
+step_rows_write = 0
+
+try:
+    result = spark.sql(query)
+    step_rows_write = result.first()['num_inserted_rows']
+    step_status = "COMPLETED"
+    step_error = None
+except Exception as e:
+    step_status = "FAILED"
+    step_error = type(e).__name__
+    raise e
+finally:
+    # Log status to FDP flow statistics table
+    insert_script_dict.update({
+        "run_id": adf_params_dict["run_id"],
+        "run_date": step_start_ts.date(),
+        "flow_name": adf_params_dict["flow_name"],
+        "object_id": adf_params_dict["object_id"],
+        "source_name": adf_params_dict["source_name"],
+        "step_name": step_name,
+        "step_source": adf_params_dict["step_source"],
+        "step_status": step_status,
+        "step_rows_write": step_rows_write,
+        "step_error": step_error,
+        "step_start_ts": step_start_ts,
+        "step_end_ts": datetime.now(),
+        "fdp_flow_statistics": fdp_flow_statistics,
+    })
+    insert_fdp_flow_statistics(insert_script_dict)
+    if step_status == "FAILED":
+        raise ValueError(f"Code Failed with error type:'{step_error}'")
