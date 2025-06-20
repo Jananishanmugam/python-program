@@ -1,0 +1,149 @@
+import sys
+import json
+import awswrangler as wr
+from awsglue.transforms import *
+from awsglue.utils import getResolvedOptions
+from pyspark.context import SparkContext
+from awsglue.context import GlueContext
+from awsglue.job import Job
+from typing import Tuple, List
+from awsglue.dynamicframe import DynamicFrame
+
+
+# init Glue Arguments
+args = getResolvedOptions(sys.argv, ["JOB_NAME"])
+sc = SparkContext()
+glueContext = GlueContext(sc)
+spark = glueContext.spark_session
+job = Job(glueContext)
+job.init(args["JOB_NAME"], args)
+
+
+logger = glueContext.get_logger()
+
+
+def get_col_types_mapping(
+    schema_list: List[Tuple[str, str]]
+) -> List[Tuple[str, str, str, str]]:
+
+    mappings = []
+    for val, typ in schema_list:
+        mappings.append((val, typ, val, typ))
+
+    return mappings
+
+
+activity_context = getResolvedOptions(sys.argv, ["ActivityContext"])["ActivityContext"]
+activity_context = json.loads(activity_context)
+plant = activity_context["plant"]
+topic = activity_context["topic"]
+bucket = getResolvedOptions(sys.argv, ["BUCKET"])["BUCKET"]
+glue_connection = getResolvedOptions(sys.argv, ["GLUE_CONNECTION"])["GLUE_CONNECTION"]
+rds_table = activity_context.get("rds_table", topic)
+rds_database = activity_context.get("rds_database", "db_elb")
+rds_schema = activity_context.get("rds_schema", f"elb_{plant}")
+is_initializing = bool(activity_context.get("is_initializing", False))
+
+logger.info(f"Received Parameters: {json.dumps(activity_context)}")
+
+key_dict_per_topic = {
+    "mes_takeoutprotocol": {
+        "s3_path": "/data/ENV/ebr/ebr_kafka_streaming/PLANT/app.elb-PLANT.mes-takeoutprotocol.mes-elb.stream.incoming.avro/",
+        "pk_constraint": """
+                        ALTER TABLE SCHEMA.RDS_TABLE
+                        ADD CONSTRAINT mes_takeoutprotocol_pk
+                        PRIMARY KEY ("entitykey");
+                        """,
+    },
+    "mes_non_pls_steps": {
+        "s3_path": "/data/ENV/ebr/ebr_kafka_streaming/PLANT/app.elb-PLANT.mes-non-pls-steps.mes-elb.stream.incoming.avro/",
+        "pk_constraint": """
+                        ALTER TABLE SCHEMA.RDS_TABLE
+                        ADD CONSTRAINT mes_non_pls_steps_pk
+                        PRIMARY KEY ("batch", "sfo_Desc", "bf1_Desc", "hash_key");
+                        """,
+    },
+    "mes_common_steps": {
+        "s3_path": "/data/ENV/ebr/ebr_kafka_streaming/PLANT/app.elb-PLANT.mes-common-steps.mes-elb.stream.incoming.avro/",
+        "pk_constraint": """
+                        ALTER TABLE SCHEMA.RDS_TABLE
+                        ADD CONSTRAINT mes_common_steps_pk
+                        PRIMARY KEY ("entitykey");
+                        """,
+    },
+    "mes_status_pcs_steps": {
+        "s3_path": "/data/ENV/ebr/ebr_kafka_streaming/PLANT/app.elb-PLANT.mes-status-pcs-steps-mes-elb.stream.incoming.avro/",
+        "pk_constraint": """
+                        ALTER TABLE SCHEMA.RDS_TABLE
+                        ADD CONSTRAINT mes_status_pcs_steps_pk
+                        PRIMARY KEY ("bv_ENTITYKEY", "av_ENTITYKEY");
+                        """,
+    },
+    "mes_identitycheckinput": {
+        "s3_path": "/data/ENV/ebr/ebr_kafka_streaming/PLANT/app.elb-PLANT.mes-identitycheckinput.mes-elb.stream.incoming.avro/",
+        "pk_constraint": """
+                        ALTER TABLE SCHEMA.RDS_TABLE
+                        ADD CONSTRAINT mes_identitycheckinput_pk
+                        PRIMARY KEY ("entitykey");
+                        """,
+    },
+}
+
+s3_key_output = "/".join(key_dict_per_topic[topic]["s3_path"].split("/")[5:]).replace(
+    "PLANT", plant
+)
+s3_path_output = f"s3://{bucket}/2_Cleansed/{s3_key_output}"
+
+df = spark.read.parquet(s3_path_output)
+
+columns_to_drop = ["year", "month", "day"]
+df = df.drop(*columns_to_drop)
+
+logger.info(f"column info {df.columns}")
+
+row_count = df.count()
+logger.info(f"Row count {row_count}")
+
+mappings = get_col_types_mapping(df.dtypes)
+dyf = DynamicFrame.fromDF(df, glueContext, "fromDF")
+
+applymapping = ApplyMapping.apply(
+    frame=dyf, mappings=mappings, transformation_ctx="applymapping"
+)
+
+con = wr.postgresql.connect(glue_connection, dbname=rds_database)
+with con.cursor() as cursor:
+    if is_initializing:
+        sql = f"drop table if exists {rds_schema}.{rds_table};"
+        logger.info(f"{rds_schema}.{rds_table} table dropped")
+    else:
+        sql = f"truncate table {rds_schema}.{rds_table};"
+        logger.info(f"{rds_schema}.{rds_table} table truncated")
+    cursor.execute(sql)
+    cursor.execute("COMMIT;")
+
+glueContext.write_dynamic_frame.from_jdbc_conf(
+    frame=applymapping,
+    catalog_connection=glue_connection,
+    connection_options={
+        "dbtable": f"{rds_schema}.{rds_table}",
+        "database": rds_database,
+    },
+    transformation_ctx="datasink",
+)
+logger.info(f"Successfully loaded to {rds_database}.{rds_schema}.{rds_table}")
+
+if is_initializing:
+    constraint_sql = (
+        key_dict_per_topic[topic]["pk_constraint"]
+        .replace("SCHEMA", rds_schema)
+        .replace("RDS_TABLE", rds_table)
+    )
+    logger.info(constraint_sql)
+    with con.cursor() as cursor:
+        cursor.execute(constraint_sql)
+        cursor.execute("COMMIT;")
+    logger.info(f"{rds_schema}.{rds_table} constraints added")
+con.close()
+
+job.commit()
