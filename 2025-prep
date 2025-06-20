@@ -1,0 +1,486 @@
+# Databricks notebook source
+# MAGIC %md
+# MAGIC
+# MAGIC ## Overview
+# MAGIC
+# MAGIC This notebook will show you how to create and query a table or DataFrame that you uploaded to DBFS. [DBFS](https://docs.databricks.com/user-guide/dbfs-databricks-file-system.html) is a Databricks File System that allows you to store data for querying inside of Databricks. This notebook assumes that you have a file already inside of DBFS that you would like to read from.
+# MAGIC
+# MAGIC This notebook is written in **Python** so the default cell type is Python. However, you can use different languages by using the `%LANGUAGE` syntax. Python, Scala, SQL, and R are all supported.
+
+# COMMAND ----------
+
+# File location and type
+file_location = "/FileStore/tables/nyctaxidata/landing/yellowdata/yellow_tripdata/yellow_tripdata_2019_05.csv"
+file_type = "csv"
+
+# CSV options
+infer_schema = "false"
+first_row_is_header = "false"
+delimiter = ","
+
+# The applied options are for CSV files. For other file types, these will be ignored.
+df = spark.read.format(file_type) \
+  .option("inferSchema", infer_schema) \
+  .option("header", first_row_is_header) \
+  .option("sep", delimiter) \
+  .load(file_location)
+
+display(df)
+
+# COMMAND ----------
+
+# Create a view or table
+
+temp_table_name = "yellow_tripdata_2019_05_csv"
+
+df.createOrReplaceTempView(temp_table_name)
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC
+# MAGIC /* Query the created temp table in a SQL cell */
+# MAGIC
+# MAGIC select * from `yellow_tripdata_2019_05_csv`
+
+# COMMAND ----------
+
+# With this registered as a temp view, it will only be available to this particular notebook. If you'd like other users to be able to query this table, you can also create a table from the DataFrame.
+# Once saved, this table will persist across cluster restarts as well as allow various users across different notebooks to query this data.
+# To do so, choose your table name and uncomment the bottom line.
+
+permanent_table_name = "yellow_tripdata_2019_05_csv"
+
+# df.write.format("parquet").saveAsTable(permanent_table_name)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ##UDF
+
+# COMMAND ----------
+
+# MAGIC %fs ls databricks-datasets/amazon/users/
+
+# COMMAND ----------
+
+iotPath = "/databricks-datasets/iot/iot_devices.json"
+iotDF = spark.read.json(iotPath)
+display(iotDF)
+
+# COMMAND ----------
+
+def bonus_est(x,y):
+    return x*y*2
+spark.udf.register('bonus_est',bonus_est)
+from pyspark.sql.functions import col
+iotDF.select(col('cn'),bonus_est(col('device_id'),col('battery_level')).alias('est')).show()
+
+# COMMAND ----------
+
+def firstLetterFunction(email):
+  return email[0]
+
+firstLetterFunction("annagray@kaufman.com")
+
+# COMMAND ----------
+
+firstLetterUDF = udf(firstLetterFunction)
+
+# COMMAND ----------
+
+from pyspark.sql.functions import col
+display(iotDF.select("device_name",firstLetterUDF("device_name"),firstLetterUDF(col("lcd"))))
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC Testing
+
+# COMMAND ----------
+
+display(dbutils.fs.ls("databricks-datasets/nyctaxi/sample/json/pep_pickup_date_txt=2008-12-31/part-00000-tid-2393398366526828660-757e4540-9287-4b16-907e-cdc5945edcb0-16672-1.c000.json"))
+
+# COMMAND ----------
+
+sampleDF = spark.read.json("/databricks-datasets/nyctaxi/sample/json/pep_pickup_date_txt=2008-12-31/part-00000-tid-2393398366526828660-757e4540-9287-4b16-907e-cdc5945edcb0-16672-1.c000.json")
+
+# COMMAND ----------
+
+display(sampleDF)
+
+# COMMAND ----------
+
+from pyspark.sql.functions import countDistinct
+df.select(countDistinct("DOLocationID").alias("DOLocID_dist")).show() #total= 30
+
+# COMMAND ----------
+
+#passenger_count, tpep_dropoff_datetime, DOLocationID
+
+from pyspark.sql.functions import col,to_date,date_format,approx_count_distinct,avg,count
+
+df = sampleDF.withColumn("timestamp",col("tpep_dropoff_datetime")).groupBy("timestamp").agg(sum("passenger_count").alias("pasg")).withColumn("day",date_format("timestamp","E")).groupBy("day").agg(avg("pasg").alias("avg_pasg"))
+display(df)
+
+# COMMAND ----------
+
+@udf("string")
+def dayUDF(day):
+    dow = {"Mon":1,"Tue":2, "Wed":3, "Thu":4, "Fri":5, "Sat":6, "Sun":7}
+    return str(dow.get(day))+'-'+day
+
+# COMMAND ----------
+
+finalDF = df.withColumn("Formatted_col",dayUDF(col("day")))
+display(finalDF)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ##Cache
+
+# COMMAND ----------
+
+#%fs ls /databricks-datasets/amazon/users/part-r-00000-f8d9888b-ba9e-47bb-9501-a877f2574b3c.csv
+display(dbutils.fs.ls("/databricks-datasets/bikeSharing/data-001"))
+
+# COMMAND ----------
+
+sampleDF = spark.read.option("inferSchema",True).option("header",True).csv("/databricks-datasets/bikeSharing/data-001/day.csv")
+display(sampleDF)
+
+# COMMAND ----------
+
+sampleDF.select("*").count()
+
+# COMMAND ----------
+
+sampleDF.cache()  #
+
+# COMMAND ----------
+
+sampleDF.select("*").count()
+
+# COMMAND ----------
+
+sampleDF.count()
+
+# COMMAND ----------
+
+sampleDF.orderBy("windspeed").count()
+
+# COMMAND ----------
+
+#Remove the cache
+sampleDF.unpersist()
+
+# DO NOT RUN ON SHARED CLUSTER - CLEARS YOUR CACHE AND YOUR COWORKER'S
+spark.catalog.clearCache()
+
+# COMMAND ----------
+
+#cache table
+sampleDF.createOrReplaceTempView("bike_share")
+# spark.catalog.cacheTable("bike")
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC SELECT count(*) From bike_share
+
+# COMMAND ----------
+
+spark.catalog.cacheTable("bike")
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC SELECT count(*) From bike_share
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ##Query Optimization
+
+# COMMAND ----------
+
+iotPath = "/databricks-datasets/iot/iot_devices.json"
+df = spark.read.json(iotPath)
+display(df)
+
+# COMMAND ----------
+
+df.columns
+
+# COMMAND ----------
+
+from pyspark.sql.functions import col
+
+limitEventsDF = (df.filter(col("cn") == "India")
+  .filter(col("cn") == "Canada")
+  .filter(col("cn") == "Japan"))
+
+limitEventsDF.count()
+limitEventsDF.explain(True)
+
+# COMMAND ----------
+
+betterDF = (df.filter( 
+  (col("cn").isNotNull()) &
+  (col("cn") == "Japan") & 
+  (col("cn") == "India") & (col("cn") == "Canada")))
+
+betterDF.count()
+betterDF.explain(True)
+
+# COMMAND ----------
+
+stupidDF = (df
+  .filter(col("cn") != "finalize")
+  .filter(col("cn") != "finalize")
+  .filter(col("cn") != "finalize")
+  .filter(col("cn") != "finalize")
+  .filter(col("cn") != "finalize")
+)
+
+stupidDF.explain(True)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC Predicate Pushdown
+
+# COMMAND ----------
+
+jdbcURL = "jdbc:postgresql://54.213.33.240/training"
+
+# Username and Password w/read-only rights
+connProperties = {
+  "user" : "training",
+  "password" : "training"
+}
+
+ppDF = (spark.read.jdbc(
+    url=jdbcURL,                  # the JDBC URL
+    table="training.people_1m",   # the name of the table
+    column="id",                  # the name of a column of an integral type that will be used for partitioning
+    lowerBound=1,                 # the minimum value of columnName used to decide partition stride
+    upperBound=1000000,           # the maximum value of columnName used to decide partition stride
+    numPartitions=8,              # the number of partitions/connections
+    properties=connProperties     
+  )
+  .filter(col("gender") == "M")   # Filter the data by gender
+)
+
+# Predicate pushdown used to reduce the amount of data that needs to be processed and retrieved during query execution. This can be done if the data sources such as Parquet, ORC, JDBC.
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC No Predicate Pushdown
+
+# COMMAND ----------
+
+cachedDF = (spark.read.jdbc(
+    url=jdbcURL,
+    table="training.people_1m",
+    column="id",
+    lowerBound=1,
+    upperBound=1000000,
+    numPartitions=8,
+    properties=connProperties
+  ))
+
+cachedDF.cache().count()
+
+filteredDF = cachedDF.filter(col("gender") == "M")
+
+#using a cache method to filter out data, these types can be done in case of csv files and many others.
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ##Partitioning
+
+# COMMAND ----------
+
+# MAGIC %fs ls databricks-datasets/delta-sharing/samples/nyctaxi_2019/
+
+# COMMAND ----------
+
+delta_path = "/databricks-datasets/delta-sharing/samples/nyctaxi_2019"
+
+df = spark.read.format("delta").load(delta_path)
+
+
+# COMMAND ----------
+
+df.rdd.getNumPartitions()
+
+# COMMAND ----------
+
+print(spark.sparkContext.defaultParallelism)
+
+# COMMAND ----------
+
+repartitionedDF = df.repartition(88)
+
+#repartition to increase number of partitions and it would shuffle 
+#lesser number of partitioning is also possible
+
+# COMMAND ----------
+
+repartitionedDF.rdd.getNumPartitions()
+
+# COMMAND ----------
+
+display(repartitionedDF)
+
+# COMMAND ----------
+
+coalesceDF = df.coalesce(89)
+
+#to decrease number of partition without shuffling
+#when increase than usual would set the limit to default value
+
+# COMMAND ----------
+
+coalesceDF.rdd.getNumPartitions()
+
+# COMMAND ----------
+
+spark.conf.get("spark.sql.shuffle.partitions")
+
+# spark.conf.set("spark.sql.shuffle.partitions", 8) is a global configuration that affects shuffle operations across your entire Spark session.
+# repartition(8) is an operation on a DataFrame that directly partitions the data into the specified number of partitions.
+
+# COMMAND ----------
+
+spark.conf.set("spark.sql.shuffle.partitions", "8")
+
+# COMMAND ----------
+
+spark.conf.get("spark.sql.adaptive.enabled")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ##Review
+
+# COMMAND ----------
+
+# MAGIC %fs ls /databricks-datasets/amazon/
+
+# COMMAND ----------
+
+df = spark.read.format("delta").load("/databricks-datasets/flowers/delta/")
+display(df)
+
+# COMMAND ----------
+
+# first, middle and last names
+# gender
+# birth date
+# Social Security number
+# salary
+from pyspark.sql import SparkSession
+from pyspark.sql.types import StructType, StructField, StringType, DoubleType, DateType
+
+# Initialize Spark session
+spark = SparkSession.builder.appName("SampleDataFrame").getOrCreate()
+
+# Define the schema for the DataFrame
+schema = StructType([
+    StructField("first_name", StringType(), True),
+    StructField("middle_name", StringType(), True),
+    StructField("last_name", StringType(), True),
+    StructField("gender", StringType(), True),
+    StructField("birth_date", StringType(), True),
+    StructField("ssn", StringType(), True),
+    StructField("salary", DoubleType(), True)
+])
+
+# Create sample data with duplicate and inconsistent formatting
+data = [
+    ("John", "A", "Doe", "Male", "1990-01-15", "123-45-6789", 55000.0),
+    ("JOHN", "A", "DOE", "Male", "1990-01-15", "123456789", 55000.0),
+    ("Jane", "B", "Smith", "Female", "1985-05-23", "987-65-4321", 72000.0),
+    ("JANE", "B", "SMITH", "Female", "1985-05-23", "987654321", 72000.0),
+    ("Carol", None, "Johnson", "Female", "1978-11-02", "992-83-4829", 65000.0),
+    ("CAROL", None, "JOHNSON", "Female", "1978-11-02", "992834829", 65000.0)
+]
+
+# Create the DataFrame
+sample_df = spark.createDataFrame(data, schema=schema)
+
+# Show the DataFrame
+sample_df.show()
+
+
+# COMMAND ----------
+
+#Change the name
+from pyspark.sql.functions import col,lower,initcap,to_date,date_format
+df = sample_df.select(initcap("first_name").alias("FirstName"),
+                      initcap("middle_name").alias("MiddleName"),
+                      initcap("last_name").alias("LastName"),
+                      col("birth_date"),
+                      to_date("birth_date").alias("Date"),
+                      date_format("Date","E").alias("Day"), #EEEE for full form of day name
+                      date_format("Date","dd/MM/yyyy").alias("format_date"),
+                      to_date("format_date","dd/MM/yyyy").alias("sampledate"),
+                      "*")
+df = df.drop("first_name","middle_name","last_name")
+display(df)
+
+# COMMAND ----------
+
+@udf("string")
+def ssnUDF(name):
+    final = name.replace("-", "")
+    return int(final)
+
+
+from pyspark.sql.functions import cast
+df = df.select("*",ssnUDF("ssn").cast("int").alias("formated_ssn"))
+display(df)
+
+
+# COMMAND ----------
+
+df = df.drop("ssn","birth_date").dropDuplicates()
+display(df)
+
+# COMMAND ----------
+
+df.rdd.getNumPartitions()
+
+# COMMAND ----------
+
+print(spark.sparkContext.defaultParallelism)
+
+# COMMAND ----------
+
+df = df.repartition(2)
+
+# COMMAND ----------
+
+df.rdd.getNumPartitions()
+
+# COMMAND ----------
+
+destFile = "/janani/review/"
+(df.write
+   .mode("overwrite")
+   .option("compression", "snappy")
+   .parquet(destFile)
+)
+
+# COMMAND ----------
+
+dbutils.fs.rm("/janani/review/",True)
+
+# COMMAND ----------
+
+# MAGIC %fs ls /janani/review/
