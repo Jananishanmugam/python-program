@@ -1,0 +1,22 @@
+# Databricks notebook source
+# DBTITLE 1,unzip and archive file
+def unzip_file(zip_file_path, extract_to_path, archive_full_path):
+    try:
+        # Unzip the CSV file to the specified preprocessed folder
+        with zipfile.ZipFile(zip_file_path, "r") as zip_ref:
+            zip_ref.extractall(extract_to_path)
+
+        # Create the archive folder if it does not exist
+        dbutils.fs.mkdirs(archive_full_path)
+        
+        # Move the .zip file to the archive folder
+        dbutils.fs.mv(zip_file_path, archive_full_path)
+        
+        # Return the path where the files were extracted
+        return extract_to_path
+    except zipfile.BadZipFile:
+        # Raise a ValueError if the provided file is not a valid zip file
+        raise ValueError(f"Error: '{zip_file_path}' is not a valid zip file.")
+    except Exception as e:
+        # Raise a ValueError with a descriptive message if any other error occurs
+        raise ValueError(f"Error unzipping file '{zip_file_path}': {e}")
