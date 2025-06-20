@@ -1,0 +1,244 @@
+# Databricks notebook source
+# DBTITLE 1,validate_filename
+def validate_filename(file_name: str, regex_pattern: str, logger):
+    try:
+        # Log the start of the file name check process
+        logger.log_info("------------------------------------------------")
+        logger.log_info("Applying File Name Check......")
+
+        # Define date patterns to replace in the generic file name
+        date_patterns = {
+            "YYYYMMDDHHMMSS": r"\d{14}",  # e.g., 20250123110705
+            "YYYYMMDD": r"\d{8}",  # e.g., 20250123
+            "YYMMDD": r"\d{6}",  # e.g., 250123
+            "YYYY": r"\d{4}",  # e.g., 2025
+            "MMDDYYYY": r"\d{8}",  # e.g., 01232025
+            "DDMMYYYY": r"\d{8}",  # e.g., 23012025
+            "YYYY-MM-DD": r"\d{4}-\d{2}-\d{2}",  # e.g., 2025-01-23
+            "YYYY_MM_DD": r"\d{4}_\d{2}_\d{2}",  # e.g., 2025_01_23
+            "DD-MM-YYYY": r"\d{2}-\d{2}-\d{4}",  # e.g., 23-01-2025
+            "DD_MM_YYYY": r"\d{2}_\d{2}_\d{4}",  # e.g., 23_01_2025
+            "MM-DD-YYYY": r"\d{2}-\d{2}-\d{4}",  # e.g., 01-23-2025
+            "MM_DD_YYYY": r"\d{2}_\d{2}_\d{4}",  # e.g., 01_23_2025
+            "YYYY-MM-DD_HH-MM-SS": r"\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}",  # e.g., 2025-01-23_11-07-05
+            "YYYYMMDD_HHMMSS": r"\d{8}_\d{6}",  # e.g., 20250123_110705
+            "YYYY-MM-DDTHH:MM:SS": r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}",  # e.g., 2025-01-23T11:07:05
+        }
+
+        # Validate the file name against the compiled regex pattern
+        if not re.match(regex_pattern, file_name):
+            # Log error if the file name does not match the expected pattern
+            logger.log_error(
+                f"File name check FAILED. File name '{file_name}' does not match the expected pattern '{regex_pattern}'."
+            )
+            return (0, 0, 1)  # Return failure status
+
+        # Log success if the file name matches the expected pattern
+        logger.log_info(
+            f"File name check PASSED. File name '{file_name}' matches the expected pattern '{regex_pattern}'."
+        )
+        return (1, 0, 0)  # Return success status
+    except Exception as e:
+        # Log any exceptions that occur during the file name validation process
+        logger.log_error(f"Error during file name validation: {e}")
+        return (0, 0, 1)  # Return failure status
+
+# COMMAND ----------
+
+# DBTITLE 1,file_seperator_check
+def file_separator_check(file_format, separator, object_id, logger, data_instance_catalog, folder_path, file_name):
+    try:
+        # Log the start of the file separator check process
+        logger.log_info("------------------------------------------------")
+        logger.log_info("Applying File Separator Check......")
+
+        # Check if the file format is CSV
+        if file_format == "csv":
+            # Read the data instance catalog table and filter by the specific object ID
+            data_instance_catalog_df = spark.read.table(data_instance_catalog).filter(col("data_object_id") == object_id)
+            
+            # Collect the list of data instance names
+            data_instance_list = [row["data_instance_name"] for row in data_instance_catalog_df.collect()]
+            len_data_instance_list = len(data_instance_list)  # Get the expected number of columns
+
+            # Read the actual file with the specified separator and without header
+            df = spark.read.format("csv").option("header", False).option("sep", separator).load(f"{folder_path}/{file_name}")
+            num_columns = len(df.columns)  # Get the number of columns in the file
+
+            # Compare the expected number of columns with the actual number of columns
+            if len_data_instance_list != num_columns:
+                # Log error if there is a mismatch between expected and actual columns
+                logger.log_error("File separator check FAILED. Mismatch between expected columns and file columns.")
+                return (0, 0, 1)  # Return failure status
+            else:
+                # Log success if there is no mismatch between expected and actual columns
+                logger.log_info("File separator check PASSED. No mismatch between expected columns and file columns.")
+                return (1, 0, 0)  # Return success status
+        else:
+            # Log info if the file format is not CSV
+            logger.log_info("Separator check is only for csv file")
+            return (0, 0, 0)  # Return neutral status for non-CSV files
+    except Exception as e:
+        # Log any exceptions that occur during the file separator check process
+        logger.log_error(f"Error during file separator check: {e}")
+        return (0, 0, 1)  # Return failure status
+
+# COMMAND ----------
+
+# DBTITLE 1,file_format_check
+def file_format_check(expected_file_format, regex_pattern, files, logger):
+    try:
+        # Log the start of the file format check process
+        logger.log_info("------------------------------------------------")
+        logger.log_info("Applying File Format Check......")
+        # Iterate over each file in the list of files
+        for file in files:
+            # Check if the file name matches the provided regex pattern
+            if re.match(regex_pattern, file.name.rsplit(".", 1)[0]):
+                # Extract the file extension and convert it to lowercase
+                file_extension = file.name.split(".")[-1].lower()
+
+                # Check if the file extension matches the expected file format
+                if file_extension == expected_file_format:
+                    logger.log_info(
+                        f"File format check PASSED. File {file.name} complies with the expected format '{expected_file_format.upper()}'"
+                    )
+                    return (1, 0, 0)  # Return success status
+
+                else:
+                    logger.log_error(
+                        f"File format check FAILED. File {file.name} does not comply with the expected format '{expected_file_format.upper()}'"
+                    )
+                    return (0, 0, 1)  # Return failure status
+
+        # Log an error if no files matched the regex pattern
+        logger.log_error(
+            "File format check FAILED. No files matched the regex pattern."
+        )
+        return (0, 0, 1)  # Return failure status
+
+    except Exception as e:
+        # Log any exceptions that occur during the file format check process
+        logger.log_error(f"Error during file format check: {e}")
+        return (0, 0, 1)  # Return failure status
+
+# COMMAND ----------
+
+# DBTITLE 1,file_row_check
+def file_row_check(
+    logger, expected_file_format, threshold, folder_path, file_name, fdp_flow_statistics
+):
+    try:
+        # Log the start of the file row check process
+        logger.log_info("------------------------------------------------")
+        logger.log_info("Applying File Row Check......")
+
+        # Read the flow statistics table
+        flow_statistics_df = spark.table(fdp_flow_statistics)
+
+        # Filter the flow statistics for the specific object and step, and get the most recent record
+        object_flow_statistics = (
+            flow_statistics_df.filter(
+                (col("step_source").contains(object_name))
+                & (col("step_name") == "dq_data_check")
+                & (upper(col("step_status")) == "COMPLETED")
+            )
+            .orderBy(col("run_date").desc())
+            .select("step_rows_write")
+            .limit(1)
+        )
+
+        # Check if there are no previous records found
+        if object_flow_statistics.isEmpty():
+            logger.log_info("Row count check PASSED. No previous records found")
+            return (1, 0, 0)
+
+        # Extract the threshold value and previous row count
+        threshold_value = int(threshold.rstrip("%"))
+        previous_file_row_count = object_flow_statistics.collect()[0]["step_rows_write"]
+
+        # Adjust the expected file format if necessary
+        if expected_file_format == "fin":
+            expected_file_format = "csv"
+
+        # Read the current file and count the number of rows
+        df = spark.read.format(expected_file_format).load(f"{folder_path}/{file_name}")
+        row_count = df.count()
+
+        # Calculate the row difference and allowed threshold
+        row_difference = abs(row_count - previous_file_row_count)
+        allowed_threshold = (threshold_value / 100) * previous_file_row_count
+
+        # Check if the row difference exceeds the allowed threshold
+        if row_difference > allowed_threshold:
+            logger.log_error(
+                f"Row count check WARNING. Row count deviation exceeded!\nExpected: {previous_file_row_count},\nActual: {row_count},\nDifference: {row_difference},\nAllowed: {allowed_threshold}"
+            )
+            return (0, 1, 0)
+        else:
+            logger.log_info(
+                f"Row count check PASSED. Row count deviation is within the acceptable threshold!\nExpected: {previous_file_row_count},\nActual: {row_count},\nDifference: {row_difference},\nAllowed: {allowed_threshold}"
+            )
+            return (1, 0, 0)
+    except Exception as e:
+        # Log any exceptions that occur during the file row check process
+        logger.log_error(f"Error during file row check: {e}")
+        return (0, 1, 0)
+
+# COMMAND ----------
+
+# DBTITLE 1,file_presence_check
+def file_presence_check(files, actual_file, logger):
+    try:
+        # Log the start of the file presence check process
+        logger.log_info("------------------------------------------------")
+        logger.log_info("Applying File Presence Check......")
+
+        # Check if the actual_file is present in the list of files
+        file_present = any(file.name == actual_file for file in files)
+
+        # Log the result of the file presence check
+        if file_present:
+            logger.log_info(f"File presence check PASSED, file found: {actual_file}")
+            return (1, 0, 0)  # Return success status
+        else:
+            logger.log_error(
+                f"File presence check FAILED, file not found: {actual_file}"
+            )
+            return (0, 0, 1)  # Return failure status
+    except Exception as e:
+        # Log any exceptions that occur during the file presence check process
+        logger.log_error(f"Error during file presence check: {e}")
+        return (0, 0, 1)  # Return failure status
+
+# COMMAND ----------
+
+# DBTITLE 1,file_size_check
+def file_size_check(files, regex_pattern, logger):
+    try:
+        # Log the start of the file size check process
+        logger.log_info("------------------------------------------------")
+        logger.log_info("Applying File Size Check......")
+
+        # Identify files that match the regex pattern and have a size of 0
+        empty_files = [
+            file.path
+            for file in files
+            if re.match(regex_pattern, file.name) and file.size == 0
+        ]
+
+        # Check if any empty files were found
+        if empty_files:
+            # Log an error if empty files are found and return failure status
+            logger.log_error(
+                f"File size check FAILED, empty files found: {empty_files}"
+            )
+            return (0, 0, 1)
+        else:
+            # Log success if no empty files are found and return success status
+            logger.log_info("File size check PASSED, no empty file found.")
+            return (1, 0, 0)
+    except Exception as e:
+        # Log any exceptions that occur during the file size check process and return failure status
+        logger.log_error(f"Error during file size check: {e}")
+        return (0, 0, 1)
