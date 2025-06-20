@@ -1,0 +1,309 @@
+# Databricks notebook source
+# DBTITLE 1,Import FDP Logger
+# MAGIC %run ../00_logs/00_fdp_logger
+
+# COMMAND ----------
+
+# DBTITLE 1,Import Base Functions
+# MAGIC %run ./01_generic_base_functions
+
+# COMMAND ----------
+
+# DBTITLE 1,Import Flow Base Functions
+# MAGIC %run ./01_flow_base_functions
+
+# COMMAND ----------
+
+# DBTITLE 1,Import Result Transcription Functions
+# MAGIC %run ./00_insert_result_transcription_tables
+
+# COMMAND ----------
+
+# DBTITLE 1,Initialize Databricks Parameters
+import re
+import json
+import logging
+import zipfile
+from datetime import datetime
+from pyspark.sql import Row
+from pyspark.sql.types import StringType
+from datetime import datetime
+from pyspark.sql.functions import (
+    col,
+    collect_list,
+    struct,
+    first,
+    udf,
+    upper,
+    lit,
+    current_date,
+    sum as spark_sum,
+)
+
+# Retrieve ADF parameters passed to the notebook
+dbutils.widgets.text("adf_params_dict", "")
+adf_params_dict = json.loads(dbutils.widgets.get("adf_params_dict"))
+
+# Extract specific parameters from the ADF parameters dictionary
+interface_file_name = adf_params_dict["interface_file_name"]
+interface_folder_path = adf_params_dict["interface_folder_path"]
+action_id = adf_params_dict["run_id"]
+
+# Define file paths for landing, log, and archive directories
+landing_path = adf_params_dict["landing_path"]
+log_path = adf_params_dict["log_path"]
+archive_path = adf_params_dict["archive_path"]
+
+
+# Record the start timestamp of the step
+step_start_ts = datetime.now()
+
+# Construct the ADLS landing path based on the interface folder path
+adls_landing_path = f"{landing_path}/{'/'.join(interface_folder_path.split('/')[3:])}"
+
+# Define the volumes file path in the archive directory
+volume_archive_path = (
+    f"{archive_path}/{interface_folder_path.split('/')[-1].upper()}"
+)
+
+# Initialize dictionaries for script and control execution inserts
+insert_script_dict = {}
+insert_control_execution_dict = {}
+
+# Get today's date
+today_date = datetime.today()
+
+# Extract required params from dictionary
+object_id = adf_params_dict["object_id"]
+object_name = interface_file_name.rsplit('.', 1)[0]
+knowledge_base_tables = adf_params_dict["knowledge_base_tables"]
+result_transcription_tables = adf_params_dict["result_transcription_tables"]
+
+# Define the log directory and ADLS log path
+LOG_DIR = f"logs/{today_date.strftime('%Y%m%d')}/flow_check_log/{object_name}"
+adls_log_path = f"{log_path}/{LOG_DIR}"
+
+# Initialize step status and error variables
+step_status = "COMPLETED"
+step_error = None
+
+# Initialize Logger
+logger = Logger(adls_log_path, f"{today_date.strftime('%Y%m%d%H%M%S')}.log")
+
+# Log the initiation of the flow check for the object
+logger.log_info(f"Initiating flow check for the object: {object_name}")
+
+# COMMAND ----------
+
+# DBTITLE 1,Check .zip Files
+# Check if the interface file is a ZIP file
+if interface_file_name.split(".")[-1].upper() == "ZIP":
+    try:
+        # Define the path to the ZIP file in the landing directory
+        zip_file_path = f"{adls_landing_path}/{interface_file_name}"
+
+        # Define the path to extract the contents of the ZIP file
+        extract_to_path = f"{adls_landing_path}/preprocessed/"
+
+        # Define the archive path for the ZIP file
+        archive_full_path = (
+            f"{volume_archive_path}/{interface_file_name}"
+        )
+
+        # Unzip the file and get the folder path where contents are extracted
+        folder_path = unzip_file(zip_file_path, extract_to_path, archive_full_path)
+
+        # Log the extraction of the ZIP file
+        logger.log_info(f"Extracted the zip file to {extract_to_path}")
+
+        # Get the name of the first file in the extracted folder
+        file_name = dbutils.fs.ls(folder_path)[0].name
+    except Exception as e:
+        # Log an error if the ZIP file is not present or extraction fails
+        logger.log_error(
+            f"File not present {interface_file_name}, path:{zip_file_path}"
+        )
+
+        # Write logs to ADLS and exit the notebook with an error message
+        logger.write_logs_to_adls()
+        dbutils.notebook.exit("File not present")
+else:
+    # If the file is not a ZIP file, set the folder path to the ADLS landing path
+    folder_path = adls_landing_path
+
+    # Set the file name to the interface file name
+    file_name = interface_file_name
+
+# COMMAND ----------
+
+# DBTITLE 1,Main
+try:
+    # Log the initiation of the flow check for the object
+    logger.log_info(f"Initiating flow check for {object_name}")
+
+    # Load DataFrames from knowledge base tables and cache them for performance
+    mapping_df = spark.sql(
+        f"SELECT * FROM {knowledge_base_tables['mapping_table']}"
+    ).cache()
+    control_df = spark.sql(
+        f"SELECT * FROM {knowledge_base_tables['control_dictionary']}"
+    ).cache()
+    data_object_df = spark.sql(
+        f"SELECT * FROM {knowledge_base_tables['data_object_catalog']}"
+    ).cache()
+
+    # Filter control dictionary to get active flow checks
+    control_filtered_df = control_df.filter(
+        (col("control_object") == "Flow") & (col("active_flag") == "Y")
+    )
+    logger.log_info("Extracting relevant flow checks from the control dictionary")
+
+    # Join DataFrames to get flow checks related to the object name
+    mapping_data_object_df = (
+        mapping_df.join(control_filtered_df, "control_id")
+        .join(
+            data_object_df, mapping_df["data_object_id"] == data_object_df["object_id"]
+        )
+        .select(
+            "mapping_id",
+            "object_id",
+            "object_name",
+            "control_name",
+            "technical_function",
+            "threshold",
+            "file_format",
+            "separator",
+            "file_name_pattern",
+        )
+        .filter(col("object_id") == object_id)
+    )
+
+    # Log the flow checks that need to be implemented for the object
+    logger.log_info(
+        f"Filtering all the flow check that needs to be implemented on {object_name}: {[row['control_name'] for row in mapping_data_object_df.select('control_name').collect()]}"
+    )
+
+    # Check if there are no flow checks for the object
+    if mapping_data_object_df.isEmpty():
+        logger.log_info(f"No flow check found for {object_name}")
+    else:
+        # List files present in the folder path
+        files = dbutils.fs.ls(folder_path)
+        logger.log_info(f"Getting files present in folder path")
+
+        # Iterate over each flow check and perform the corresponding technical function
+        for row in mapping_data_object_df.collect():
+            try:
+                # Extract relevant details from the row
+                object_id = row["object_id"]
+                expected_file_format = row["file_format"].lower()
+                regex_pattern = row["file_name_pattern"]
+                technical_function = row["technical_function"]
+                control_name = row["control_name"]
+                mapping_id = row["mapping_id"]
+                threshold = row["threshold"]
+                file_name_pattern = row["file_name_pattern"]
+                separator = row["separator"]
+
+                # Perform the technical function based on the control name
+                if technical_function == "file_presence":
+                    ok, warning, blocking = file_presence_check(
+                        files, file_name, logger
+                    )
+                elif technical_function == "data_presence":
+                    ok, warning, blocking = file_size_check(
+                        files, regex_pattern, logger
+                    )
+                elif technical_function == "file_format":
+                    ok, warning, blocking = file_format_check(
+                        expected_file_format, regex_pattern, files, logger
+                    )
+                elif technical_function == "file_row_check":
+                    ok, warning, blocking = file_row_check(
+                        logger,
+                        expected_file_format,
+                        threshold,
+                        folder_path,
+                        file_name,
+                        result_transcription_tables["fdp_flow_statistics"],
+                    )
+                elif technical_function == "file_name_check":
+                    file_name_without_extension = file_name.rsplit(".", 1)[0]
+                    ok, warning, blocking = validate_filename(
+                        file_name_without_extension, file_name_pattern, logger
+                    )
+                elif technical_function == "seperator_check":
+                    ok, warning, blocking = file_separator_check(
+                        expected_file_format,
+                        separator,
+                        object_id,
+                        logger,
+                        knowledge_base_tables["data_instance_catalog"],
+                        folder_path,
+                        file_name,
+                    )
+                else:
+                    continue
+
+                # Update the control execution dictionary with the results
+                insert_control_execution_dict.update(
+                    {
+                        "action_id": action_id,
+                        "mapping_id": mapping_id,
+                        "execution_timestamp": step_start_ts,
+                        "ok_count": ok,
+                        "warning_count": warning,
+                        "ko_count": blocking,
+                        "control_execution_tbl": result_transcription_tables[
+                            "control_execution"
+                        ],
+                    }
+                )
+
+                # Insert control execution results into the database
+                insert_control_execution(insert_control_execution_dict)
+
+                # Update step status based on the results of the flow check
+                if blocking:
+                    step_status = "FAILED"
+                    step_error = control_name
+                elif warning:
+                    step_status = "WARNING"
+                    step_error = control_name
+
+            except Exception as e:
+                # Log any errors encountered during the flow check processing
+                logger.log_error(
+                    f"Error processing flow check {technical_function}: {e}"
+                )
+except Exception as e:
+    # Log any unexpected errors
+    logger.log_error(f"Unexpected error: {e}")
+finally:
+    # Update the script execution dictionary with the final results
+    insert_script_dict.update(
+        {
+            "run_id": adf_params_dict["run_id"],
+            "run_date": step_start_ts.date(),
+            "flow_name": adf_params_dict["flow_name"],
+            "object_id": object_id,
+            "source_name": adf_params_dict["country_name"],
+            "step_name": "dq_flow_check",
+            "step_source": file_name,
+            "step_status": step_status,
+            "step_rows_write": 0,
+            "step_error": step_error,
+            "step_start_ts": step_start_ts,
+            "step_end_ts": datetime.now(),
+            "fdp_flow_statistics": result_transcription_tables["fdp_flow_statistics"],
+        }
+    )
+    # Insert script execution results into the database
+    insert_fdp_flow_statistics(insert_script_dict)
+    logger.log_info("Flow check completed")
+    logger.write_logs_to_adls()
+    # Raise an error if the flow check failed
+    if step_status == "FAILED":
+        # archive source file in case of any flow check fails.
+        dbutils.fs.mv(f"{adls_landing_path}/{file_name}", f"{volume_archive_path}/{file_name}")
+        raise ValueError(f"Flow check failed for '{step_error}'")
