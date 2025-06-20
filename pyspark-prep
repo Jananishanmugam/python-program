@@ -1,0 +1,1302 @@
+# Databricks notebook source
+# MAGIC %sql
+# MAGIC Create database test_db;
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ####parquet and delta
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC USE test_db;
+# MAGIC
+# MAGIC -- Create the department table
+# MAGIC CREATE OR REPLACE TABLE department (
+# MAGIC     department_id INT,
+# MAGIC     department_name STRING
+# MAGIC );
+# MAGIC
+# MAGIC -- Create the employee table
+# MAGIC CREATE OR REPLACE TABLE employee (
+# MAGIC     employee_id INT,
+# MAGIC     name STRING,
+# MAGIC     salary DOUBLE,
+# MAGIC     department_id INT
+# MAGIC )
+# MAGIC USING DELTA;
+# MAGIC
+# MAGIC -- Insert data into the department table
+# MAGIC INSERT INTO department VALUES 
+# MAGIC (1, 'Data Analytics'),
+# MAGIC (2, 'Data Science');
+# MAGIC
+# MAGIC -- Insert data into the employee table
+# MAGIC INSERT INTO employee VALUES 
+# MAGIC (1, 'Emma Thompson', 3800, 1),
+# MAGIC (2, 'Daniel Rodriguez', 2230, 1),
+# MAGIC (3, 'Olivia Smith', 2000, 1),
+# MAGIC (4, 'Noah Johnson', 6800, 2),
+# MAGIC (5, 'Sophia Martinez', 1750, 1),
+# MAGIC (8, 'William Davis', 6800, 2),
+# MAGIC (10, 'James Anderson', 4000, 1);
+# MAGIC
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC desc extended department;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC CREATE TABLE normaltable (
+# MAGIC     id INT,
+# MAGIC     department_name STRING
+# MAGIC )USING PARQUET;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC desc extended normaltable;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC INSERT INTO normaltable VALUES 
+# MAGIC (1, 'Data Analytics'),
+# MAGIC (2, 'Data Science');
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC update normaltable set id=3 where id=2
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC update department set department_id=3 where department_id=2
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC SELECT department_name, name, salary FROM (select *, DENSE_RANK() OVER(partition by d.department_name order by e.salary DESC) as rank from employee e 
+# MAGIC left join department d
+# MAGIC ON d.department_id = e.department_id) 
+# MAGIC WHERE rank <=3
+# MAGIC
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- Create the campaigns table
+# MAGIC CREATE OR REPLACE TABLE campaigns (
+# MAGIC     campaign_id INT,
+# MAGIC     drug STRING
+# MAGIC )
+# MAGIC USING DELTA;
+# MAGIC
+# MAGIC -- Create the ad_impressions table
+# MAGIC CREATE OR REPLACE TABLE ad_impressions (
+# MAGIC     impression_id INT,
+# MAGIC     campaign_id INT,
+# MAGIC     view_date DATE
+# MAGIC )
+# MAGIC USING DELTA;
+# MAGIC
+# MAGIC -- Create the ad_clicks table
+# MAGIC CREATE OR REPLACE TABLE ad_clicks (
+# MAGIC     click_id INT,
+# MAGIC     impression_id INT,
+# MAGIC     click_date DATE
+# MAGIC )
+# MAGIC USING DELTA;
+# MAGIC
+# MAGIC -- Insert data into campaigns table
+# MAGIC INSERT INTO campaigns VALUES 
+# MAGIC (1, 'Opdivo'),
+# MAGIC (2, 'Bristol-Myers'),
+# MAGIC (3, 'Reyataz');
+# MAGIC
+# MAGIC -- Insert data into ad_impressions table
+# MAGIC INSERT INTO ad_impressions VALUES 
+# MAGIC (4567, 1, '2022-06-08'),
+# MAGIC (5678, 3, '2022-08-12'),
+# MAGIC (6789, 2, '2022-07-26'),
+# MAGIC (7891, 3, '2022-07-21'),
+# MAGIC (8912, 1, '2022-06-20');
+# MAGIC
+# MAGIC -- Insert data into ad_clicks table
+# MAGIC INSERT INTO ad_clicks VALUES 
+# MAGIC (1123, 4567, '2022-06-08'),
+# MAGIC (2234, 7891, '2023-07-22'),
+# MAGIC (3345, 8912, '2022-06-20'),
+# MAGIC (4456, 4567, '2022-06-09');
+# MAGIC
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- select c.drugs, b.impression, b.clicks FROM 
+# MAGIC (select impression_id, count(d.impression_id) as clicks FROM ad_impressions a LEFT JOIN ad_clicks d USING (impression_id) 
+# MAGIC GROUP BY impression_id) 
+# MAGIC -- LEFT JOIN campaigns c ON  
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC SELECT camp.drug ,
+# MAGIC        ROUND(COUNT(DISTINCT cli.impression_id)*1.0/COUNT(DISTINCT imp.impression_id),2) as CTR
+# MAGIC FROM   campaigns camp
+# MAGIC JOIN   ad_impressions imp
+# MAGIC ON camp.campaign_id = imp.campaign_id
+# MAGIC JOIN   ad_clicks cli
+# MAGIC ON imp.impression_id = cli.impression_id
+# MAGIC GROUP BY camp.drug
+# MAGIC ORDER BY CTR DESC;
+# MAGIC
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC select *, date_format(view_date,'MMM') from ad_impressions
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC CREATE OR REPLACE TABLE a (
+# MAGIC     id INT
+# MAGIC );
+# MAGIC CREATE OR REPLACE TABLE b (
+# MAGIC     id INT
+# MAGIC );
+# MAGIC INSERT INTO a VALUES(1),(1),(1);
+# MAGIC INSERT INTO b VALUES(1),(1);
+# MAGIC
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC INSERT INTO a VALUES(2);
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC select * from a
+# MAGIC FULL OUTER JOIN b using (id)
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC select * from a
+# MAGIC OUTER JOIN b using (id)
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC CREATE OR REPLACE TABLE transaction (
+# MAGIC     customer_id INT,
+# MAGIC     transaction_type STRING,
+# MAGIC     transaction_amount STRING
+# MAGIC );
+# MAGIC
+# MAGIC -- Create the employee table
+# MAGIC CREATE OR REPLACE TABLE amount (
+# MAGIC     customer_id INT,
+# MAGIC     current_amount STRING
+# MAGIC )
+# MAGIC
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC INSERT INTO transaction VALUES
+# MAGIC (1,'credit',30),
+# MAGIC (1,'debit',90),
+# MAGIC (2,'credit',50),
+# MAGIC (3,'debit',57),
+# MAGIC (2,'debit',90);
+# MAGIC
+# MAGIC INSERT INTO amount VALUES
+# MAGIC (1,1000),
+# MAGIC (2,2000),
+# MAGIC (3,3000),
+# MAGIC (4,4000)
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC with cd AS (
+# MAGIC select customer_id,
+# MAGIC CASE WHEN transaction_type ='credit' then transaction_amount end as credit,
+# MAGIC case when transaction_type = 'debit' then transaction_amount
+# MAGIC end as debit from transaction)
+# MAGIC select customer_id,sum(credit) as credit,sum(debit) as debit from cd
+# MAGIC group by 1;
+# MAGIC
+# MAGIC
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- Create the table
+# MAGIC CREATE TABLE assessments (
+# MAGIC   id INT,
+# MAGIC   experience INT,
+# MAGIC   sql INT,
+# MAGIC   algo INT,
+# MAGIC   bug_fixing INT
+# MAGIC );
+# MAGIC
+# MAGIC -- Insert data into the table
+# MAGIC INSERT INTO assessments VALUES 
+# MAGIC   (1, 3, 100, NULL, 50),
+# MAGIC   (2, 5, NULL, 100, 100),
+# MAGIC   (3, 1, 100, 100, 100),
+# MAGIC   (4, 5, 100, 50, NULL),
+# MAGIC   (5, 5, 100, 100, 100);
+# MAGIC
+# MAGIC -- View the table
+# MAGIC SELECT * FROM assessments;
+# MAGIC
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC TRUNCATE TABLE assessments;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC INSERT INTO assessments VALUES 
+# MAGIC   (1, 2, NULL, NULL, NULL),
+# MAGIC   (2, 20, NULL, NULL, 20),
+# MAGIC   (3, 7, 100, NULL, 100),
+# MAGIC   (4, 3, 100, 50, NULL),
+# MAGIC   (5, 2, 40, 100, 100);
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC WITH score_table AS (SELECT experience, 
+# MAGIC CASE WHEN ((sql = 100) or (sql is NULL)) AND ((algo = 100) or (algo is NULL))  AND ((bug_fixing = 100) or (bug_fixing is NULL))
+# MAGIC THEN 1
+# MAGIC ELSE 0 
+# MAGIC END AS score 
+# MAGIC FROM assessments)
+# MAGIC
+# MAGIC Select experience, sum(score) as max, count(experience) as count FROM score_table
+# MAGIC group by experience
+# MAGIC order by experience desc;
+# MAGIC
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ####min max
+
+# COMMAND ----------
+
+from pyspark.sql.types import StructType, StructField, IntegerType, StringType
+import random
+
+# Define Student Names
+students = ["Alice", "Bob", "Charlie", "David", "Eva", "Frank", "Grace", "David"]
+
+# Generate Data with Random Marks (between 60 and 100)
+data = [(name, random.randint(60, 100), random.randint(60, 100), random.randint(60, 100), random.randint(60, 100)) for name in students]
+
+# Define Schema
+schema = StructType([
+    StructField("Name", StringType(), True),
+    StructField("S1", IntegerType(), True),
+    StructField("S2", IntegerType(), True),
+    StructField("S3", IntegerType(), True),
+    StructField("S4", IntegerType(), True)
+])
+
+# Create DataFrame
+df = spark.createDataFrame(data, schema)
+
+# Show DataFrame
+df.show()
+
+# COMMAND ----------
+
+from pyspark.sql.functions import *
+df1 = df.withColumn("min", least(col('S1'),col('S2'),col('S3'),col('S4')))\
+        .withColumn("max", greatest(col('S1'),col('S2'),col('S3'),col('S4')))
+df1.display()
+
+# COMMAND ----------
+
+#drop duplicates wrt name
+from pyspark.sql.functions import *
+df2 = df.dropDuplicates(["Name"])
+df2.show()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ####inheritance
+
+# COMMAND ----------
+
+class Parent(object):
+    x = 1
+
+class child1(Parent):
+    pass
+
+class child2(Parent):
+    pass
+
+child1.x = 2
+Parent.x = 3
+print(Parent.x,child1.x,child2.x)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ####sales
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- %sql
+# MAGIC CREATE TABLE sales2 (
+# MAGIC     sell_date STRING,
+# MAGIC     product_name VARCHAR(50),
+# MAGIC     quantity_sold INT,
+# MAGIC     price DECIMAL(10,2)
+# MAGIC );
+# MAGIC
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC Drop table hive_metastore.default.sales1
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC INSERT INTO sales2 (sell_date, product_name, quantity_sold, price) VALUES
+# MAGIC ('15022024', 'Laptop', 5, 1000.00),
+# MAGIC ('15022024', 'Mobile', 10, 500.00),
+# MAGIC ('16022024', 'Tablet', 8, 300.00),
+# MAGIC ('16022024', 'Headphones', 15, 100.00),
+# MAGIC ('17022024', 'Laptop', 3, 950.00),
+# MAGIC ('17022024', 'Mobile', 12, 520.00),
+# MAGIC ('', 'pen', 1, 52.00);
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- Truncate table sales2;
+# MAGIC select TO_DATE(sell_date,'ddMMyyyy') from sales2
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- drop table sales_date;
+# MAGIC create table sales_date1 AS (select cast(year(sell_date) AS STRING) as year, cast(month(sell_date) AS STRING) as month, cast(day(sell_date) AS STRING) as day, quantity_sold from sales1);
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC select to_date(concat(year,'-',month,'-',day)) as date, sum(quantity_sold) 
+# MAGIC from sales_date1
+# MAGIC group by 1;
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ####explode & split
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- %sql
+# MAGIC Create table sales_group AS
+# MAGIC (select sell_date, count(product_name) as count, ARRAY_JOIN(COLLECT_LIST(product_name), ', ') as num_prod from sales1
+# MAGIC group by sell_date);
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC select *, EXPLODE(SPLIT(num_prod, ', ')) as exploded from sales_group;
+
+# COMMAND ----------
+
+df = spark.table("default.sales1")
+df.show()
+
+# COMMAND ----------
+
+from pyspark.sql.functions import *
+result_df = df.groupBy("sell_date") \
+    .agg(
+        count("product_name").alias("num_prod"), 
+        array_join(collect_list("product_name"), ", ").alias("product_list")
+    )
+result_df.show()
+
+# COMMAND ----------
+
+
+result_df.withColumn("sub_list",split(col("product_list"),',')).withColumn("products",explode(col('sub_list'))).show()
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC USE hive_metastore.default
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC CREATE TABLE table11 (
+# MAGIC    id INT
+# MAGIC );
+# MAGIC CREATE TABLE table22 (
+# MAGIC    id INT
+# MAGIC );
+# MAGIC INSERT INTO table11 VALUES (1),(2),(3),(4);
+# MAGIC INSERT INTO table22 VALUES (5),(2),(6),(4),(7);
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC with un as (select * from table1
+# MAGIC UNION 
+# MAGIC select * from table2),
+# MAGIC intr as
+# MAGIC (select * from table1
+# MAGIC INTERSECT 
+# MAGIC select * from table2)
+# MAGIC
+# MAGIC select * from un
+# MAGIC MINUS
+# MAGIC select * from intr
+# MAGIC order by 1;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC select * from table1 where id not in (select * from table2)
+# MAGIC union
+# MAGIC select * from table2 where id not in (select * from table1);
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ####people data 
+
+# COMMAND ----------
+
+data = [
+  (1,"Sagar", 23, "Male", 68.0),
+  (2,"Kim", 35, "Female", 90.2),
+  (3,"Alex", 40, "Male", 79.1),
+]
+schema = "id int, Name string, Age int, Gender string, Marks float"
+
+df = spark.createDataFrame(data,schema)
+df.display()
+
+# COMMAND ----------
+
+df.select("id","age").write.option("mode","append").csv("FileStore/janani/people_prob/id_age/")
+
+# COMMAND ----------
+
+df.select("id","age").write.mode("overwrite").parquet("FileStore/janani/people_prob/id_age_parquet/")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ####to get number of partitions
+# MAGIC - check id_age and name_gender to understand how files are partitioned
+
+# COMMAND ----------
+
+df.rdd.getNumPartitions()
+
+# COMMAND ----------
+
+df = df.coalesce(1)
+
+# COMMAND ----------
+
+df.select("Name","Gender").write.option("mode","append").csv("FileStore/janani/people_prob/name_gender/")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ####searching and deleting 
+
+# COMMAND ----------
+
+dbutils.fs.rm("dbfs:/FileStore/janani/people_prob/name_gender/",True)
+
+# COMMAND ----------
+
+# MAGIC %fs ls "dbfs:/FileStore/janani/people_prob/name_gender/"
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ####string matches the pattern 
+
+# COMMAND ----------
+
+# B. Write a python program to implement following. Given a pattern and a string. If string matches the pattern return true else return false. 
+# Ex: 
+# Pattern – “abba”, String – “dog cat cat dog” will return true. 
+# Pattern – “aba”, String – “dog dog cat” will return false.
+
+# COMMAND ----------
+
+dic = {}
+
+s = "dog cat dog"
+p = "aab"
+
+l = len(p)
+sl = s.split(" ")
+print(sl)
+
+for i in range(l):
+    if p[i] not in dic:
+        dic[p[i]] = sl[i]
+    elif dic[p[i]] != sl[i]:
+        print(False)
+        break
+    else:
+        pass
+print(dic)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ####3month rolling average
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC CREATE OR REPLACE TEMP VIEW purchases AS 
+# MAGIC SELECT * FROM VALUES
+# MAGIC     (1, '2023-01-15', 100),
+# MAGIC     (2, '2023-01-25', 200),
+# MAGIC     (3, '2023-02-10', 150),
+# MAGIC     (4, '2023-02-20', 300),
+# MAGIC     (5, '2023-03-05', 250),
+# MAGIC     (6, '2023-03-18', 400),
+# MAGIC     (7, '2023-04-12', 500),
+# MAGIC     (8, '2023-04-22', 350),
+# MAGIC     (9, '2023-05-06', 450),
+# MAGIC     (10, '2023-05-20', 600)
+# MAGIC AS purchases(user_id, purchase_date, purchase_amount);
+# MAGIC
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC select *, date_format(purchase_date,"yyyy-MM") as months from purchases
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC with grouped as (select date_format(purchase_date,"yyyy-MM") as months, sum(purchase_amount) as total from purchases
+# MAGIC group by 1)
+# MAGIC
+# MAGIC select months, case when rw > 2 then round(rolling,2) else rolling/3.0 end as 3m_roll from 
+# MAGIC (select months, avg(total) over (order by months ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) as rolling, row_number() over (order by months) as rw from grouped)
+# MAGIC
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ####count rows in each column
+
+# COMMAND ----------
+
+data  = [
+    {"id": 1, "name": "Alice", "age": 25},
+    {"id": 2, "name": "Bob", "age": "null"},
+    {"id": 3, "name": "Charlie", "age": 35},
+    {"id": 4, "name": "null", "age": "null"},
+    {"id": 5, "name": "null", "age": "null"}
+]
+
+df = spark.createDataFrame(data)
+display(df)
+
+# COMMAND ----------
+
+df = df.coalesce(1)
+
+# COMMAND ----------
+
+output_path = "FileStore/janani/count_rows/data.csv"
+df.write.mode("overwrite").option("header", "true").csv(output_path)
+
+# COMMAND ----------
+
+# MAGIC %fs ls "dbfs:/FileStore/janani/count_rows/data.csv"
+
+# COMMAND ----------
+
+path = "dbfs:/FileStore/janani/count_rows/data.csv/part-00000-tid-3820227528761713261-807dbd72-5971-45e1-ad45-8de564c10744-34-1-c000.csv"
+
+df1 = spark.read.format("csv").option("nullvalue","null").option("header",True).load(path)
+display(df1)
+
+# COMMAND ----------
+
+from pyspark.sql.functions import *
+df_c = df1.select([count(i) for i in df1.columns])
+display(df_c)
+
+# COMMAND ----------
+
+dfnew = df1.select(["id",lit("true").alias("True")])
+dfnew.show()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ####handle multiple delimiters
+
+# COMMAND ----------
+
+data = """
+ID|Name|Marks
+1|Janani|20,30,40
+2|Monika|12,34,44
+3|Divya|22,33,43
+"""
+
+dbutils.fs.put("dbfs:/FileStore/janani/delimiters/multiple.csv",str(data))
+
+# COMMAND ----------
+
+# MAGIC %fs ls "dbfs:/FileStore/janani/delimiters/multiple.csv"
+
+# COMMAND ----------
+
+df = spark.read.format("csv").option("header","True").option("sep","|").load("/FileStore/janani/delimiters/multiple.csv")
+display(df)
+
+# COMMAND ----------
+
+df = df.withColumn("History",split(col("Marks"),',')[0])\
+            .withColumn("Chemistry",split(col("Marks"),',')[1])\
+                .withColumn("Physics",split(col("Marks"),',')[2])
+display(df)
+
+# COMMAND ----------
+
+df = df.drop("Marks")
+
+# COMMAND ----------
+
+display(df)
+
+# COMMAND ----------
+
+df.filter(col("History")/4 > 4).show()
+
+# COMMAND ----------
+
+df.filter(df.Name.rlike('^%an%$')).show()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ####str to json to column
+
+# COMMAND ----------
+
+data=[('John Doe','{"street": "123 Main St", "city": "Anytown"}'),('Jane Smith','{"street": "456 Elm St", "city": "Othertown"}')]
+df=spark.createDataFrame(data,schema="name string,address string")
+display(df)
+
+# COMMAND ----------
+
+from pyspark.sql.functions import *
+df1 = df.withColumn("parsed_json", from_json(col("address"),'street string, city string'))
+df2 = df1.select(col("name"),col("parsed_json").street.alias("street"),col("parsed_json").city.alias("city"))
+display(df2)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ####globals
+
+# COMMAND ----------
+
+print(globals().items())
+
+# COMMAND ----------
+
+for k,v in globals().items():
+    if isinstance(v,DataFrame):
+        print(k)
+# or
+for k,v in globals().items():
+    if type(v) == DataFrame:
+        print(k)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ####pivot
+
+# COMMAND ----------
+
+data=[
+('Rudra','math',79),
+('Rudra','eng',60),
+('Shivu','math', 68),
+('Shivu','eng', 59),
+('Anu','math', 65),
+('Anu','eng',80)
+]
+schema="Name string,Sub string,Marks int"
+df=spark.createDataFrame(data,schema)
+df.show()
+
+# COMMAND ----------
+
+df.createOrReplaceTempView("mark_table")
+
+# COMMAND ----------
+
+df.groupBy("Name").pivot("Sub").sum("Marks").show()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ####visitors problem
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC Create database samp;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC use database samp;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC CREATE TABLE visits
+# MAGIC (
+# MAGIC   visitor_id int,
+# MAGIC   visits int,
+# MAGIC   date DATE
+# MAGIC );
+# MAGIC
+# MAGIC Create table visitors
+# MAGIC (
+# MAGIC   visitor_id int,
+# MAGIC   user_name string
+# MAGIC );
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC INSERT INTO visits VALUES
+# MAGIC (1, 101, DATE('2025-01-10')),
+# MAGIC (1, 102, DATE('2025-01-10')),
+# MAGIC (1, 103,  DATE('2025-01-10')),
+# MAGIC (2, 104,  DATE('2025-01-10')),
+# MAGIC (3, 105,  DATE('2025-01-10')),
+# MAGIC (2, 106,  DATE('2025-01-11')),
+# MAGIC (2, 107,  DATE('2025-01-11')),
+# MAGIC (1, 108,  DATE('2025-01-11')),
+# MAGIC (3, 109,  DATE('2025-01-11'));
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC INSERT INTO visitors VALUES
+# MAGIC (1,'Alice'),
+# MAGIC (2,'Bob'),
+# MAGIC (3,'Cathey');
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC select * from visitors;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC with total as (select user_name, date, count(visit_id) over(partition by date,visitor_id order by date) as visit_count
+# MAGIC from visits join visitors using (visitor_id)
+# MAGIC group by user_name,date),
+# MAGIC maxm as (
+# MAGIC select t.date, vt.user_name, max(t.visit_count) as max_visits from total t
+# MAGIC left join visitors vt
+# MAGIC using (visitor_id)
+# MAGIC group by 1,2)
+# MAGIC
+# MAGIC select v.date,v.user_name,v.visit_count as max_visits 
+# MAGIC from total v join maxm m on t.visit_count=m.max_visits
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC with total as (select date, visitor_id, count(visitor_id) over (partition by date,visitor_id order by date) as visit_count
+# MAGIC from visits )
+# MAGIC select distinct date, user_name, visit_count from (
+# MAGIC select t.date, v.user_name, t.visit_count, dense_rank() over (partition by date order by visit_count desc) as rank from total t 
+# MAGIC left join visitors v
+# MAGIC using (visitor_id)
+# MAGIC )
+# MAGIC where rank =1
+# MAGIC
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC select date, visitor_id, count(visitor_id) over (partition by date,visitor_id order by date) as visit_count
+# MAGIC from visits
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ####second highest mark
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- from cell 91
+# MAGIC
+# MAGIC select * from mark_table
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC select max(marks) from mark_table
+# MAGIC where marks not in (select max(marks) from mark_table)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ####subject wise highest mark
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC select s.sub, m.name, s.mark from (select sub, max(marks) as mark from mark_table
+# MAGIC group by sub) s
+# MAGIC left join mark_table m
+# MAGIC on m.marks = s.mark and m.sub = s.sub
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ####Recursive
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC with RECURSIVE cte_rec as (
+# MAGIC   select 1 as id
+# MAGIC   union all
+# MAGIC   select id+1 from cte_rec
+# MAGIC   where id <=20
+# MAGIC )
+# MAGIC select * from cte_rec;
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #### find users who purchased different products on different dates - Amazon
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC USE samp;
+# MAGIC create table purchase_table
+# MAGIC (user_id int
+# MAGIC ,product_id int
+# MAGIC ,purchase_date DATE
+# MAGIC );
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC truncate table purchase_table;
+# MAGIC
+# MAGIC insert into purchase_table values
+# MAGIC (1,1,DATE('2012-01-23')),
+# MAGIC (1,2,DATE('2012-01-23')),
+# MAGIC (1,3,DATE('2012-01-25')),
+# MAGIC (2,1,DATE('2012-01-23')),
+# MAGIC (2,2,DATE('2012-01-23')),
+# MAGIC (2,2,DATE('2012-01-25')),
+# MAGIC (2,4,DATE('2012-01-25')),
+# MAGIC (3,4,DATE('2012-01-23')),
+# MAGIC (3,1,DATE('2012-01-23')),
+# MAGIC (4,1,DATE('2012-01-23')),
+# MAGIC (4,2,DATE('2012-01-25'))
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC select * from purchase_table;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC select distinct user_id from purchase_table
+# MAGIC where user_id not in (
+# MAGIC select distinct p1.user_id from purchase_table p1
+# MAGIC left join purchase_table p2
+# MAGIC on p1.user_id = p2.user_id and p1.purchase_date <> p2.purchase_date
+# MAGIC where p1.product_id = p2.product_id
+# MAGIC union
+# MAGIC select distinct p1.user_id from purchase_table p1
+# MAGIC left join purchase_table p2
+# MAGIC on p1.user_id = p2.user_id and p1.purchase_date <> p2.purchase_date
+# MAGIC where p2.product_id is NULL 
+# MAGIC )
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ####JP morgan Question pyspark, group, agg, window, sql
+
+# COMMAND ----------
+
+data = [
+    (1, 2021, "Chase Sapphire Reserve", 170000),
+    (2, 2021, "Chase Sapphire Reserve", 175000),
+    (3, 2021, "Chase Sapphire Reserve", 180000),
+    (3, 2021, "Chase Freedom Flex", 65000),
+    (4, 2021, "Chase Freedom Flex", 70000)
+]
+
+columns = ["issue_month", "issue_year", "card_name", "issued_amount"]
+
+df = spark.createDataFrame(data, columns)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #####using join pyspark
+
+# COMMAND ----------
+
+from pyspark.sql.functions import *
+df1 = df.withColumn("month_year",make_date(col("issue_year"),col("issue_month"),lit(1)))
+df2 = df1.groupBy(col("card_name")).agg(min(col("month_year")).alias("month_year"))
+
+df1 = df1.alias('a')
+df2 = df2.alias('b')
+df3 = df2.join(df1, on = [col("a.month_year") == col("b.month_year"),col("a.card_name") == col("b.card_name")], how= 'left')
+
+display(df3.select(col("a.card_name"),col("issued_amount")).orderBy(col("issued_amount").desc()))
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ####using window function
+
+# COMMAND ----------
+
+from pyspark.sql.window import Window
+
+
+window_func = Window.partitionBy(col("card_name")).orderBy(col("issue_year"),col("issue_month"))
+
+dw1 = df.withColumn("rank",dense_rank().over(window_func))
+display(dw1.select(col("card_name"),col("issued_amount")).filter(col("rank") == 1).orderBy(col("issued_amount").desc()))
+
+# COMMAND ----------
+
+df.createOrReplaceTempView("Creditcard")
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC with month_year_card as (
+# MAGIC select DATE_FORMAT(MAKE_DATE(issue_year, issue_month, 1), 'MM-yyyy') as month_year, * from Creditcard
+# MAGIC ),
+# MAGIC first_month as (
+# MAGIC   select card_name, min(month_year) as month_year from month_year_card
+# MAGIC   group by card_name
+# MAGIC )
+# MAGIC
+# MAGIC select f.card_name, m.issued_amount
+# MAGIC from first_month f
+# MAGIC left join month_year_card m on f.month_year = m.month_year and f.card_name = m.card_name
+# MAGIC order by 2 desc
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC select MAKE_DATE(issue_year, issue_month, 1)as month_year from Creditcard
+# MAGIC
+# MAGIC --Make_date is similar to to_date but they convert int to date, while to_date convert string to int
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ####Pyspark-cognizant (when, expr)
+
+# COMMAND ----------
+
+data = [("Laptop", 800), ("Mouse", 25), ("Keyboard", 150), ("Monitor", 300)] 
+columns = ["product", "price"] 
+
+df = spark.createDataFrame(data,columns)
+display(df)
+
+# COMMAND ----------
+
+from pyspark.sql.functions import *
+
+df1 = df.withColumn("level", when(col("price")<100,"Low").when(expr("price >= 100 and price < 500"),"Medium").otherwise("High"))
+display(df1)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ####Employee
+
+# COMMAND ----------
+
+from pyspark.sql.types import *
+
+# Define sample data
+data = [
+    (101, "Alice", 90000, "Engineering"),
+    (102, "Bob", 60000, "Sales"),
+    (103, "Charlie", 75000, "Marketing"),
+    (104, "Diana", 80000, "Engineering"),
+    (105, "Ethan", 50000, "HR")
+]
+
+# Define schema
+schema = StructType([
+    StructField("emp_id", IntegerType(), True),
+    StructField("emp_name", StringType(), True),
+    StructField("salary", IntegerType(), True),
+    StructField("department", StringType(), True)
+])
+
+# Create DataFrame
+df = spark.createDataFrame(data, schema)
+
+# COMMAND ----------
+
+df.createOrReplaceTempView("employee_table")
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC with cte as (
+# MAGIC     select department, AVG(salary) as avg from employee_table
+# MAGIC     GROUP by department
+# MAGIC )
+# MAGIC
+# MAGIC select emp_name, department, salary, avg from employee_table
+# MAGIC left join cte using (department)
+# MAGIC where salary >= avg
+# MAGIC
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC select emp_name, department, salary from employee_table t1
+# MAGIC where t1.salary >= (select AVG(salary) FROM employee_table t2 
+# MAGIC where t1.department=t2.department)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ####Pandas
+
+# COMMAND ----------
+
+import pandas as pd
+
+addresses = {"address": ["4860 Sunset Boulevard, San Francisco, 94105", "3055 Paradise Lane, Salt Lake City, 84103", "682 Main Street, Detroit, 48204", "9001 Cascade Road, Kansas City, 64102", "5853 Leon Street, Tampa, 33605"]}
+
+cities = {"city": ["Salt Lake City", "Kansas City", "Detroit", "Tampa", "San Francisco"], "state": ["Utah", "Missouri", "Michigan", "Florida", "California"]}
+
+df_addresses = pd.DataFrame(addresses)
+df_cities = pd.DataFrame(cities)
+
+# COMMAND ----------
+
+display(df_addresses)
+display(df_cities)
+
+# COMMAND ----------
+
+data = list(zip(cities["city"], cities["state"]))
+print(data)
+
+# Create DataFrame
+ct = spark.createDataFrame(data, schema="city string, state string")
+
+# Display
+display(ct)
+
+# COMMAND ----------
+
+from pyspark.sql.functions import when, expr
+ct.withColumn("trueorfalse",when(expr("city == 'Tampa'"), 'YES').otherwise('NO')).show()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #Prep 2
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC question is in : https://datalemur.com/blog/salesforce-sql-interview-questions
+
+# COMMAND ----------
+
+from pyspark.sql.functions import *
+from pyspark.sql import SparkSession
+from pyspark.sql.types import StructType, StructField, IntegerType, StringType, DateType
+import datetime
+
+# COMMAND ----------
+
+spark = SparkSession.builder.appName("CustomerActivity").getOrCreate()
+
+# Customer table data
+customer_data = [
+    (101, "John Doe", "johndoe@example.com"),
+    (102, "Jane Smith", "janesmith@example.com"),
+    (103, "Sarah Johnson", "sarahjohnson@example.com"),
+    (104, "Matthew Taylor", "matthewtaylor@example.com"),
+]
+
+customer_schema = StructType([
+    StructField("customer_id", IntegerType(), False),
+    StructField("name", StringType(), True),
+    StructField("email", StringType(), True),
+])
+
+customer_df = spark.createDataFrame(data=customer_data, schema=customer_schema)
+
+# Activity data with proper datetime.date objects
+activity_data = [
+    (1, 101, "login", 100, datetime.date(2025, 5, 4)),
+    (2, 102, "transaction", 30, datetime.date(2025, 5, 2)),
+    (3, 103, "transaction", 52, datetime.date(2025, 5, 3)),
+    (4, 104, "contact_support", 75, datetime.date(2025, 5, 4)),
+    (5, 103, "login", 85, datetime.date(2025, 5, 5)),
+    (6, 104, "transaction", 58, datetime.date(2025, 5, 8)),
+]
+
+activity_schema = StructType([
+    StructField("activity_id", IntegerType(), False),
+    StructField("customer_id", IntegerType(), False),
+    StructField("activity_type", StringType(), True),
+    StructField("activity_count", IntegerType(), True),
+    StructField("date", DateType(), True),
+])
+
+activity_df = spark.createDataFrame(data=activity_data, schema=activity_schema)
+
+
+# COMMAND ----------
+
+# ANS:
+df = activity_df.filter(col("date") > date_sub(current_date(),30)) 
+df1 = df.filter((col("activity_type") == 'login') | ((col("activity_type") == 'transaction') & (col("activity_count") >= 50))).select(col("customer_id")).distinct()
+df2 = df.filter(col("activity_type") == 'contact_support').select(col("customer_id")).distinct()
+df1 = df1.join(df2,on=df1.customer_id==df2.customer_id,how='left_anti')
+final_df = df1.join(customer_df, on=df1.customer_id==customer_df.customer_id,how='left').drop(customer_df.customer_id)
+
+display(final_df)
+
+# COMMAND ----------
+
+#Question 4
+# Define data as list of tuples with datetime.date objects
+tickets_data = [
+    (101, datetime.date(2022, 6, 1), datetime.date(2022, 6, 5)),
+    (102, datetime.date(2022, 6, 1), datetime.date(2022, 7, 5)),
+    (103, datetime.date(2022, 5, 18), datetime.date(2022, 5, 22)),
+    (104, datetime.date(2022, 7, 1), datetime.date(2022, 7, 2)),
+    (105, datetime.date(2022, 7, 2), datetime.date(2022, 7, 4)),
+]
+
+# Define schema
+tickets_schema = StructType([
+    StructField("ticket_id", IntegerType(), False),
+    StructField("creation_date", DateType(), True),
+    StructField("close_date", DateType(), True),
+])
+
+# Create DataFrame
+tickets_df = spark.createDataFrame(data=tickets_data, schema=tickets_schema)
+
+# COMMAND ----------
+
+#ANS:
+
+df = tickets_df.withColumn("NumberOfdays",datediff(col("close_date"),col("creation_date"))).withColumn("month",date_format(col("creation_date"),'MM'))
+df = df.groupBy(col("month")).agg(avg(col("NumberOfdays")))
+display(df)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC deloitte hard question - https://www.youtube.com/watch?v=WiI7bI2jkT8
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC CREATE TABLE Products (
+# MAGIC     ProductID INT,
+# MAGIC     Product VARCHAR(255),
+# MAGIC     Category VARCHAR(100)
+# MAGIC );
+# MAGIC
+# MAGIC INSERT INTO Products (ProductID, Product, Category)
+# MAGIC VALUES
+# MAGIC     (1, 'Laptop', 'Electronics'),
+# MAGIC     (2, 'Smartphone', 'Electronics'),
+# MAGIC     (3, 'Tablet', 'Electronics'),
+# MAGIC     (4, 'Headphones', 'Accessories'),
+# MAGIC     (5, 'Smartwatch', 'Accessories'),
+# MAGIC     (6, 'Keyboard', 'Accessories'),
+# MAGIC     (7, 'Mouse', 'Accessories'),
+# MAGIC     (8, 'Monitor', 'Accessories'),
+# MAGIC     (9, 'Printer', 'Electronics');
+
+# COMMAND ----------
+
+df = spark.sql("SELECT * FROM Products")
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC select *, row_number() over(partition by Category order by ProductID) as asc_order,
+# MAGIC row_number() over(partition by Category order by ProductID desc) as desc_order  from products
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC with cte as (select *, row_number() over(partition by Category order by ProductID) as asc_order,
+# MAGIC row_number() over(partition by Category order by ProductID desc) as desc_order  from products)
+# MAGIC
+# MAGIC select c2.ProductID, c1.Product, c1.Category from cte c1
+# MAGIC inner join cte c2 on c1.asc_order = c2.desc_order and c1.Category = c2.Category
+# MAGIC order by 3
