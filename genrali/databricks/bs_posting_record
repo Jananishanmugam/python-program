@@ -1,0 +1,266 @@
+# Databricks notebook source
+dbutils.widgets.text("Run_Id","")
+dbutils.widgets.text("Source_System","")
+
+Run_Id = dbutils.widgets.get("Run_Id")
+Source_System = dbutils.widgets.get("Source_System")
+
+# COMMAND ----------
+
+# DBTITLE 1,BS_POSTING_RECORD
+spark.sql(
+    f"""
+INSERT INTO
+  fdp.bdv.BS_POSTING_RECORD (
+    H_Posting_Record_Hk,
+    Invalid_Dts,
+    Hash_Diff,
+    Run_Id,
+    Source_System,
+    Load_Dts,
+    Rec_Src,
+    Posting_Record_Bk,
+    Definitively_Posted,
+    Multy_Curr_Units,
+    Transaction_Line_Item_Id,
+    Curr_Iso_Cd,
+    Derived_Fiscal_Year,
+    Exchange_Rate_Home_Curr_To_Group_Curr_Type,
+    Derived_Fiscal_Year_Month,
+    Exchange_Rate_Home_Curr_To_Group_Curr_Amt,
+    Line_Item_Amt,
+    Effective_Posting_Dt,
+    Exchange_Rate_Invoice_Curr_To_Home_Curr_Amt,
+    Lineitem_Factor,
+    Exchange_Rate_Invoice_Curr_To_Home_Curr_Type,
+    Line_Item_Free_Text,
+    Posting_Direction,
+    Exchange_Rate_Invoice_Curr_To_Portfolio_Curr_Amt,
+    Line_Item_Nbr,
+    Posting_Foreign_Key_Id,
+    Exchange_Rate_Invoice_Curr_To_Portfolio_Curr_Type,
+    Line_Item_Percentage_Value,
+    Posting_Item_Cat,
+    Group_Curr_Amt,
+    Line_Item_Sub_Type,
+    Value_Posting_Dt,
+    Group_Curr_Iso_Cd,
+    Lineitem_Type,
+    Home_Curr_Iso_Cd,
+    Line_Item_Valid_From_Dt,
+    Invoice_Amt,
+    Line_Item_Vat_Amt,
+    Invoice_Amt_In_Home_Curr_Amt,
+    Manual_Modification_Takes_Place,
+    Invoice_Amt_In_Portfolio_Curr_Amt,
+    Invoice_Curr_Iso_Cd,
+    Processing_Status,
+    Notation_Type,
+    Portfolio_Curr_Iso
+  )
+SELECT
+  src.H_Posting_Record_Hk,
+  '9999-12-31 23:59:59' AS Invalid_Dts,
+  src.Hash_Diff,
+  '{Run_Id}' AS Run_Id,
+  '{Source_System}' AS Source_System,
+  current_timestamp() AS Load_Dts,
+  src.Rec_Src,
+  src.Posting_Record_Bk,
+  src.Definitively_Posted,
+  src.Multy_Curr_Units,
+  src.Transaction_Line_Item_Id,
+  src.Curr_Iso_Cd,
+  src.Derived_Fiscal_Year,
+  src.Exchange_Rate_Home_Curr_To_Group_Curr_Type,
+  src.Derived_Fiscal_Year_Month,
+  src.Exchange_Rate_Home_Curr_To_Group_Curr_Amt,
+  src.Line_Item_Amt,
+  src.Effective_Posting_Dt,
+  src.Exchange_Rate_Invoice_Curr_To_Home_Curr_Amt,
+  src.Lineitem_Factor,
+  src.Exchange_Rate_Invoice_Curr_To_Home_Curr_Type,
+  src.Line_Item_Free_Text,
+  src.Posting_Direction,
+  src.Exchange_Rate_Invoice_Curr_To_Portfolio_Curr_Amt,
+  src.Line_Item_Nbr,
+  src.Posting_Foreign_Key_Id,
+  src.Exchange_Rate_Invoice_Curr_To_Portfolio_Curr_Type,
+  src.Line_Item_Percentage_Value,
+  src.Posting_Item_Cat,
+  src.Group_Curr_Amt,
+  src.Line_Item_Sub_Type,
+  src.Value_Posting_Dt,
+  src.Group_Curr_Iso_Cd,
+  src.Lineitem_Type,
+  src.Home_Curr_Iso_Cd,
+  src.Line_Item_Valid_From_Dt,
+  src.Invoice_Amt,
+  src.Line_Item_Vat_Amt,
+  src.Invoice_Amt_In_Home_Curr_Amt,
+  src.Manual_Modification_Takes_Place,
+  src.Invoice_Amt_In_Portfolio_Curr_Amt,
+  src.Invoice_Curr_Iso_Cd,
+  src.Processing_Status,
+  src.Notation_Type,
+  src.Portfolio_Curr_Iso
+FROM
+  (
+    SELECT
+      stg.H_Posting_Record_Hk,
+      stg.Invalid_Dts,
+      md5(
+        CONCAT(
+          NVL(stg.Definitively_Posted, '~Null~'),
+          NVL(stg.Multy_Curr_Units, '~Null~'),
+          NVL(stg.Transaction_Line_Item_Id, '~Null~'),
+          NVL(stg.Curr_Iso_Cd, '~Null~'),
+          NVL(stg.Derived_Fiscal_Year, '~Null~'),
+          NVL(stg.Exchange_Rate_Home_Curr_To_Group_Curr_Type, '~Null~'),
+          NVL(stg.Derived_Fiscal_Year_Month, '~Null~'),
+          NVL(stg.Exchange_Rate_Home_Curr_To_Group_Curr_Amt, '~Null~'),
+          NVL(stg.Line_Item_Amt, '~Null~'),
+          NVL(stg.Effective_Posting_Dt, '1900-01-01'),
+          NVL(stg.Exchange_Rate_Invoice_Curr_To_Home_Curr_Amt, '~Null~'),
+          NVL(stg.Lineitem_Factor, '~Null~'),
+          NVL(stg.Exchange_Rate_Invoice_Curr_To_Home_Curr_Type, '~Null~'),
+          NVL(stg.Line_Item_Free_Text, '~Null~'),
+          NVL(stg.Posting_Direction, '~Null~'),
+          NVL(stg.Exchange_Rate_Invoice_Curr_To_Portfolio_Curr_Amt, '~Null~'),
+          NVL(stg.Line_Item_Nbr, '~Null~'),
+          NVL(stg.Posting_Foreign_Key_Id, '~Null~'),
+          NVL(stg.Exchange_Rate_Invoice_Curr_To_Portfolio_Curr_Type, '~Null~'),
+          NVL(stg.Line_Item_Percentage_Value, '~Null~'),
+          NVL(stg.Posting_Item_Cat, '~Null~'),
+          NVL(stg.Group_Curr_Amt, '~Null~'),
+          NVL(stg.Line_Item_Sub_Type, '~Null~'),
+          NVL(stg.Value_Posting_Dt, '~Null~'),
+          NVL(stg.Group_Curr_Iso_Cd, '~Null~'),
+          NVL(stg.Lineitem_Type, '~Null~'),
+          NVL(stg.Home_Curr_Iso_Cd, '~Null~'),
+          NVL(stg.Line_Item_Valid_From_Dt, '~Null~'),
+          NVL(stg.Invoice_Amt, '~Null~'),
+          NVL(stg.Line_Item_Vat_Amt, '~Null~'),
+          NVL(stg.Invoice_Amt_In_Home_Curr_Amt, '~Null~'),
+          NVL(stg.Manual_Modification_Takes_Place, '~Null~'),
+          NVL(stg.Invoice_Amt_In_Portfolio_Curr_Amt, '~Null~'),
+          NVL(stg.Invoice_Curr_Iso_Cd, '~Null~'),
+          NVL(stg.Processing_Status, '~Null~'),
+          NVL(stg.Notation_Type, '~Null~'),
+          NVL(stg.Portfolio_Curr_Iso, '~Null~')
+        )
+      ) AS Hash_Diff,
+      CONCAT(
+        'rs_posting_record_at_vvs',
+        '~',
+        stg.Rec_Src
+      ) AS Rec_Src,
+      stg.Posting_Record_Bk,     
+      stg.Definitively_Posted,
+      stg.Multy_Curr_Units,
+      stg.Transaction_Line_Item_Id,
+      stg.Curr_Iso_Cd,
+      stg.Derived_Fiscal_Year,
+      stg.Exchange_Rate_Home_Curr_To_Group_Curr_Type,
+      stg.Derived_Fiscal_Year_Month,
+      stg.Exchange_Rate_Home_Curr_To_Group_Curr_Amt,
+      stg.Line_Item_Amt,
+      stg.Effective_Posting_Dt,
+      stg.Exchange_Rate_Invoice_Curr_To_Home_Curr_Amt,
+      stg.Lineitem_Factor,
+      stg.Exchange_Rate_Invoice_Curr_To_Home_Curr_Type,
+      stg.Line_Item_Free_Text,
+      stg.Posting_Direction,
+      stg.Exchange_Rate_Invoice_Curr_To_Portfolio_Curr_Amt,
+      stg.Line_Item_Nbr,
+      stg.Posting_Foreign_Key_Id,
+      stg.Exchange_Rate_Invoice_Curr_To_Portfolio_Curr_Type,
+      stg.Line_Item_Percentage_Value,
+      stg.Posting_Item_Cat,
+      stg.Group_Curr_Amt,
+      stg.Line_Item_Sub_Type,
+      stg.Value_Posting_Dt,
+      stg.Group_Curr_Iso_Cd,
+      stg.Lineitem_Type,
+      stg.Home_Curr_Iso_Cd,
+      stg.Line_Item_Valid_From_Dt,
+      stg.Invoice_Amt,
+      stg.Line_Item_Vat_Amt,
+      stg.Invoice_Amt_In_Home_Curr_Amt,
+      stg.Manual_Modification_Takes_Place,
+      stg.Invoice_Amt_In_Portfolio_Curr_Amt,
+      stg.Invoice_Curr_Iso_Cd,
+      stg.Processing_Status,
+      stg.Notation_Type,
+      stg.Portfolio_Curr_Iso
+    FROM
+      (
+        SELECT
+          H_Posting_Record_Hk,
+          Invalid_Dts,
+          Rec_Src,
+          Posting_Record_Bk,
+          NULL AS Definitively_Posted,
+          NULL AS Multy_Curr_Units,
+          NULL AS Transaction_Line_Item_Id,
+          Currency AS Curr_Iso_Cd,
+          NULL AS Derived_Fiscal_Year,
+          NULL AS Exchange_Rate_Home_Curr_To_Group_Curr_Type,
+          NULL AS Derived_Fiscal_Year_Month,
+          NULL AS Exchange_Rate_Home_Curr_To_Group_Curr_Amt,
+          Amount AS Line_Item_Amt,
+          Posting_Dt AS Effective_Posting_Dt,
+          NULL AS Exchange_Rate_Invoice_Curr_To_Home_Curr_Amt,
+          NULL AS Lineitem_Factor,
+          NULL AS Exchange_Rate_Invoice_Curr_To_Home_Curr_Type,
+          Posting_Item_Desc AS Line_Item_Free_Text,
+          CASE
+            WHEN Posting_Direction = '50' THEN 'C'
+            WHEN Posting_Direction = '40' THEN 'D'
+            ELSE Posting_Direction
+          END AS Posting_Direction,
+          NULL AS Exchange_Rate_Invoice_Curr_To_Portfolio_Curr_Amt,
+          NULL AS Line_Item_Nbr,
+          NULL AS Posting_Foreign_Key_Id,
+          NULL AS Exchange_Rate_Invoice_Curr_To_Portfolio_Curr_Type,
+          NULL AS Line_Item_Percentage_Value,
+          NULL AS Posting_Item_Cat,
+          NULL AS Group_Curr_Amt,
+          NULL AS Line_Item_Sub_Type,
+          NULL AS Value_Posting_Dt,
+          NULL AS Group_Curr_Iso_Cd,
+          NULL AS Lineitem_Type,
+          NULL AS Home_Curr_Iso_Cd,
+          NULL AS Line_Item_Valid_From_Dt,
+          NULL AS Invoice_Amt,
+          NULL AS Line_Item_Vat_Amt,
+          NULL AS Invoice_Amt_In_Home_Curr_Amt,
+          NULL AS Manual_Modification_Takes_Place,
+          NULL AS Invoice_Amt_In_Portfolio_Curr_Amt,
+          NULL AS Invoice_Curr_Iso_Cd,
+          NULL AS Processing_Status,
+          NULL AS Notation_Type,
+          NULL AS Portfolio_Curr_Iso
+        FROM
+          fdp.rdv.RS_POSTING_RECORD_AT_VVS
+      ) stg
+  ) src
+  LEFT OUTER JOIN (
+    SELECT
+      H_Posting_Record_Hk,
+      Hash_Diff
+    FROM
+      fdp.bdv.BS_POSTING_RECORD
+    WHERE
+      Source_System = '{Source_System}'
+  ) tgt
+ON
+  src.H_Posting_Record_Hk = tgt.H_Posting_Record_Hk
+WHERE
+  tgt.H_Posting_Record_Hk IS NULL
+  OR (
+    tgt.H_Posting_Record_Hk IS NOT NULL
+    AND src.Hash_Diff <> tgt.Hash_Diff
+  )
+  AND src.Invalid_Dts = '9999-12-31 23:59:59'
+""")
