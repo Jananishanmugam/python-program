@@ -1,0 +1,31 @@
+# Databricks notebook source
+# DBTITLE 1,Install .whl file
+# MAGIC %pip install /Volumes/fdp/default/dq_files/IngestionEngineGenerali-1.0.6rc1-py3-none-any.whl
+
+# COMMAND ----------
+
+# DBTITLE 1,Initialize Databricks Parameters
+import json
+
+# Create a text widget to input 'adf_params_dict'
+dbutils.widgets.text("adf_params_dict", "")
+
+# Retrieve the value of 'adf_params_dict' from the widget and parse it as a JSON object
+adf_params_dict = json.loads(dbutils.widgets.get("adf_params_dict"))
+
+# COMMAND ----------
+
+# DBTITLE 1,Main
+# Import the main ingestion function from the ingestion_engine module
+import ingestion_engine.ingest_main as ingest
+
+# Execute the main ingestion function with the specified parameters
+ingest.main(
+    "bronze",  # Target layer for the ingestion process
+    adf_params_dict["logging_config"],  # Logging configuration details
+    adf_params_dict["cloud_config"],  # Cloud configuration details
+    adf_params_dict["interface_yaml"],  # YAML configuration for the interface
+    "NA",  # Placeholder for an unused parameter
+    "NA",  # Placeholder for an unused parameter
+    adf_params_dict,  # Dictionary containing additional parameters
+)
