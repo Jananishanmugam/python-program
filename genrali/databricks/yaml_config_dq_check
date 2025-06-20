@@ -1,0 +1,535 @@
+data_quality_check:
+  reject_reason: true
+  check_columns:
+  - column: LAND
+    dq_checks: not_null
+    mapping_id: 1
+    control_id: 1
+  - column: QUELLE
+    dq_checks: not_null
+    mapping_id: 2
+    control_id: 1
+  - column: BEREICH
+    dq_checks: not_null
+    mapping_id: 3
+    control_id: 1
+  - column: ZIEL
+    dq_checks: not_null
+    mapping_id: 4
+    control_id: 1
+  - column: TIMESTAMP
+    dq_checks: not_null
+    mapping_id: 5
+    control_id: 1
+  - column: MANDT
+    dq_checks: not_null
+    mapping_id: 6
+    control_id: 1
+  - column: TCODE
+    dq_checks: not_null
+    mapping_id: 7
+    control_id: 1
+  - column: ABSTKR
+    dq_checks: not_null
+    mapping_id: 8
+    control_id: 1
+  - column: BLART
+    dq_checks: not_null
+    mapping_id: 9
+    control_id: 1
+  - column: BUKRS
+    dq_checks: not_null
+    mapping_id: 10
+    control_id: 1
+  - column: WAERS
+    dq_checks: not_null
+    mapping_id: 11
+    control_id: 1
+  - column: BUDAT
+    dq_checks: not_null
+    mapping_id: 12
+    control_id: 1
+  - column: MONAT
+    dq_checks: not_null
+    mapping_id: 13
+    control_id: 1
+  - column: BLDAT
+    dq_checks: not_null
+    mapping_id: 14
+    control_id: 1
+  - column: XBLNR
+    dq_checks: not_null
+    mapping_id: 15
+    control_id: 1
+  - column: BKTXT
+    dq_checks: not_null
+    mapping_id: 16
+    control_id: 1
+  - column: NEWBS
+    dq_checks: not_null
+    mapping_id: 17
+    control_id: 1
+  - column: WRBTR
+    dq_checks: not_null
+    mapping_id: 18
+    control_id: 1
+  - column: GSBER
+    dq_checks: not_null
+    mapping_id: 19
+    control_id: 1
+  - column: ZUONR
+    dq_checks: not_null
+    mapping_id: 20
+    control_id: 1
+  - column: NEWKO
+    dq_checks: not_null
+    mapping_id: 21
+    control_id: 1
+  - column: TIMESTAMP
+    dq_checks: formats
+    type: timestamp
+    format: yyyyMMddHHmmss
+    mapping_id: 22
+    control_id: 3
+  - column: BUDAT
+    dq_checks: formats
+    type: date
+    format: ddMMyyyy
+    mapping_id: 23
+    control_id: 3
+  - column: BLDAT
+    dq_checks: formats
+    type: date
+    format: ddMMyyyy
+    mapping_id: 24
+    control_id: 3
+  - column: WRBTR
+    dq_checks: formats
+    type: decimal
+    precision: 15
+    scale: 2
+    mapping_id: 25
+    control_id: 3
+  - column: VALUT
+    dq_checks: formats
+    type: date
+    format: ddMMyyyy
+    mapping_id: 26
+    control_id: 3
+  - column: LAND
+    dq_checks: field_length
+    length: 2
+    mapping_id: 27
+    control_id: 4
+  - column: QUELLE
+    dq_checks: field_length
+    length: 6
+    mapping_id: 28
+    control_id: 4
+  - column: BEREICH
+    dq_checks: field_length
+    length: 4
+    mapping_id: 29
+    control_id: 4
+  - column: ZIEL
+    dq_checks: field_length
+    length: 6
+    mapping_id: 30
+    control_id: 4
+  - column: STATUS
+    dq_checks: field_length
+    length: 1
+    mapping_id: 31
+    control_id: 4
+  - column: TIMESTAMP
+    dq_checks: field_length
+    length: 14
+    mapping_id: 32
+    control_id: 4
+  - column: MANDT
+    dq_checks: field_length
+    length: 3
+    mapping_id: 33
+    control_id: 4
+  - column: TCODE
+    dq_checks: field_length
+    length: 4
+    mapping_id: 34
+    control_id: 4
+  - column: ABSTKR
+    dq_checks: field_length
+    length: 3
+    mapping_id: 35
+    control_id: 4
+  - column: BLART
+    dq_checks: field_length
+    length: 2
+    mapping_id: 36
+    control_id: 4
+  - column: BUKRS
+    dq_checks: field_length
+    length: 4
+    mapping_id: 37
+    control_id: 4
+  - column: WAERS
+    dq_checks: field_length
+    length: 5
+    mapping_id: 38
+    control_id: 4
+  - column: BUDAT
+    dq_checks: field_length
+    length: 8
+    mapping_id: 39
+    control_id: 4
+  - column: MONAT
+    dq_checks: field_length
+    length: 2
+    mapping_id: 40
+    control_id: 4
+  - column: BLDAT
+    dq_checks: field_length
+    length: 8
+    mapping_id: 41
+    control_id: 4
+  - column: XBLNR
+    dq_checks: field_length
+    length: 16
+    mapping_id: 42
+    control_id: 4
+  - column: BKTXT
+    dq_checks: field_length
+    length: 25
+    mapping_id: 43
+    control_id: 4
+  - column: VBUND
+    dq_checks: field_length
+    length: 6
+    mapping_id: 44
+    control_id: 4
+  - column: BELNR
+    dq_checks: field_length
+    length: 10
+    mapping_id: 45
+    control_id: 4
+  - column: NEWBS
+    dq_checks: field_length
+    length: 2
+    mapping_id: 46
+    control_id: 4
+  - column: NEWUM
+    dq_checks: field_length
+    length: 1
+    mapping_id: 47
+    control_id: 4
+  - column: NEWBK
+    dq_checks: field_length
+    length: 4
+    mapping_id: 48
+    control_id: 4
+  - column: WRBTR
+    dq_checks: field_length
+    length: 16
+    mapping_id: 49
+    control_id: 4
+  - column: DMBTR
+    dq_checks: field_length
+    length: 16
+    mapping_id: 50
+    control_id: 4
+  - column: WMWST
+    dq_checks: field_length
+    length: 16
+    mapping_id: 51
+    control_id: 4
+  - column: MWSTS
+    dq_checks: field_length
+    length: 16
+    mapping_id: 52
+    control_id: 4
+  - column: MWSKZ
+    dq_checks: field_length
+    length: 2
+    mapping_id: 53
+    control_id: 4
+  - column: GSBER
+    dq_checks: field_length
+    length: 4
+    mapping_id: 54
+    control_id: 4
+  - column: KOSTL
+    dq_checks: field_length
+    length: 10
+    mapping_id: 55
+    control_id: 4
+  - column: AUFNR
+    dq_checks: field_length
+    length: 12
+    mapping_id: 56
+    control_id: 4
+  - column: VALUT
+    dq_checks: field_length
+    length: 8
+    mapping_id: 57
+    control_id: 4
+  - column: ZUONR
+    dq_checks: field_length
+    length: 18
+    mapping_id: 58
+    control_id: 4
+  - column: SGTXT
+    dq_checks: field_length
+    length: 50
+    mapping_id: 59
+    control_id: 4
+  - column: ZLSCH
+    dq_checks: field_length
+    length: 1
+    mapping_id: 60
+    control_id: 4
+  - column: ESRRE
+    dq_checks: field_length
+    length: 27
+    mapping_id: 61
+    control_id: 4
+  - column: ESRNR
+    dq_checks: field_length
+    length: 11
+    mapping_id: 62
+    control_id: 4
+  - column: HBKID
+    dq_checks: field_length
+    length: 5
+    mapping_id: 63
+    control_id: 4
+  - column: NAME1
+    dq_checks: field_length
+    length: 35
+    mapping_id: 64
+    control_id: 4
+  - column: NAME2
+    dq_checks: field_length
+    length: 35
+    mapping_id: 65
+    control_id: 4
+  - column: STRAS
+    dq_checks: field_length
+    length: 35
+    mapping_id: 66
+    control_id: 4
+  - column: ORT01
+    dq_checks: field_length
+    length: 35
+    mapping_id: 67
+    control_id: 4
+  - column: PSTLZ
+    dq_checks: field_length
+    length: 10
+    mapping_id: 68
+    control_id: 4
+  - column: LAND1
+    dq_checks: field_length
+    length: 3
+    mapping_id: 69
+    control_id: 4
+  - column: REGIO
+    dq_checks: field_length
+    length: 3
+    mapping_id: 70
+    control_id: 4
+  - column: BANKL
+    dq_checks: field_length
+    length: 15
+    mapping_id: 71
+    control_id: 4
+  - column: BANKS
+    dq_checks: field_length
+    length: 3
+    mapping_id: 72
+    control_id: 4
+  - column: BANKN
+    dq_checks: field_length
+    length: 18
+    mapping_id: 73
+    control_id: 4
+  - column: BKONT
+    dq_checks: field_length
+    length: 2
+    mapping_id: 74
+    control_id: 4
+  - column: NEWKO
+    dq_checks: field_length
+    length: 10
+    mapping_id: 75
+    control_id: 4
+  - column: PRCTR
+    dq_checks: field_length
+    length: 10
+    mapping_id: 76
+    control_id: 4
+  - column: FWBAS
+    dq_checks: field_length
+    length: 16
+    mapping_id: 77
+    control_id: 4
+  - column: KOART
+    dq_checks: field_length
+    length: 1
+    mapping_id: 78
+    control_id: 4
+  - column: BANKA
+    dq_checks: field_length
+    length: 44
+    mapping_id: 79
+    control_id: 4
+  - column: PSKTO
+    dq_checks: field_length
+    length: 16
+    mapping_id: 80
+    control_id: 4
+  - column: SWIFT
+    dq_checks: field_length
+    length: 11
+    mapping_id: 81
+    control_id: 4
+  - column: KONTT
+    dq_checks: field_length
+    length: 2
+    mapping_id: 82
+    control_id: 4
+  - column: ISCD_ZVSARL_VX
+    dq_checks: field_length
+    length: 6
+    mapping_id: 83
+    control_id: 4
+  - column: ISCD_LNDSL_VX
+    dq_checks: field_length
+    length: 3
+    mapping_id: 84
+    control_id: 4
+  - column: ISCD_GSART_VX
+    dq_checks: field_length
+    length: 2
+    mapping_id: 85
+    control_id: 4
+  - column: ISCD_BSART_VX
+    dq_checks: field_length
+    length: 2
+    mapping_id: 86
+    control_id: 4
+  - column: ISCD_GZART_VX
+    dq_checks: field_length
+    length: 2
+    mapping_id: 87
+    control_id: 4
+  - column: ISCD_SDART_VX
+    dq_checks: field_length
+    length: 2
+    mapping_id: 88
+    control_id: 4
+  - column: ISCD_SJAHR_VX
+    dq_checks: field_length
+    length: 4
+    mapping_id: 89
+    control_id: 4
+  - column: ISCD_MJAHR_VX
+    dq_checks: field_length
+    length: 4
+    mapping_id: 90
+    control_id: 4
+  - column: ISCD_RSART_VX
+    dq_checks: field_length
+    length: 2
+    mapping_id: 91
+    control_id: 4
+  - column: ISCD_FUBER_VX
+    dq_checks: field_length
+    length: 3
+    mapping_id: 92
+    control_id: 4
+  - column: ISCD_BEBER_VX
+    dq_checks: field_length
+    length: 3
+    mapping_id: 93
+    control_id: 4
+  - column: ISCD_BSGRP_VX
+    dq_checks: field_length
+    length: 3
+    mapping_id: 94
+    control_id: 4
+  - column: BEWAR
+    dq_checks: field_length
+    length: 3
+    mapping_id: 95
+    control_id: 4
+  - column: RSTKONTL
+    dq_checks: field_length
+    length: 11
+    mapping_id: 96
+    control_id: 4
+  - column: XREF1
+    dq_checks: field_length
+    length: 12
+    mapping_id: 97
+    control_id: 4
+  - column: XREF2
+    dq_checks: field_length
+    length: 12
+    mapping_id: 98
+    control_id: 4
+  - column: XREF3
+    dq_checks: field_length
+    length: 20
+    mapping_id: 99
+    control_id: 4
+  - column: MANDT
+    dq_checks: check_integer
+    mapping_id: 100
+    control_id: 5
+  - column: BUKRS
+    dq_checks: check_integer
+    mapping_id: 101
+    control_id: 5
+  - column: NEWBS
+    dq_checks: check_integer
+    mapping_id: 102
+    control_id: 5
+  - column: NEWKO
+    dq_checks: check_integer
+    mapping_id: 103
+    control_id: 5
+  - column: TCODE
+    dq_checks: check_string
+    mapping_id: 104
+    control_id: 6
+  - column: ABSTKR
+    dq_checks: check_string
+    mapping_id: 105
+    control_id: 6
+  - column: BLART
+    dq_checks: check_string
+    mapping_id: 106
+    control_id: 6
+  - column: XBLNR
+    dq_checks: check_string
+    mapping_id: 107
+    control_id: 6
+  - column: BKTXT
+    dq_checks: check_string
+    mapping_id: 108
+    control_id: 6
+  - column: ZUONR
+    dq_checks: check_string
+    mapping_id: 109
+    control_id: 6
+  - column: SGTXT
+    dq_checks: check_string
+    mapping_id: 110
+    control_id: 6
+  - column: KOSTL
+    dq_checks: check_long
+    mapping_id: 111
+    control_id: 9
+  - column: NEWKO
+    dq_checks: check_long
+    mapping_id: 112
+    control_id: 9
