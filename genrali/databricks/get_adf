@@ -1,0 +1,90 @@
+# Databricks notebook source
+# DBTITLE 1,Initializing Databricks Parameters
+dbutils.widgets.text("interface_file_name", "")
+dbutils.widgets.text("interface_folder_path", "")
+dbutils.widgets.text("run_id", "")
+dbutils.widgets.text("flow_name", "")
+
+# Assign Databricks widget input parameters to variables
+interface_file_name = dbutils.widgets.get("interface_file_name")
+interface_folder_path = dbutils.widgets.get("interface_folder_path")
+run_id = dbutils.widgets.get("run_id")
+flow_name = dbutils.widgets.get("flow_name")
+
+# COMMAND ----------
+
+# DBTITLE 1,Import ADF Configs
+# MAGIC %run ../00_configs/00_adf_orchestration/00_fdp_adf_flow_params_config
+
+# COMMAND ----------
+
+# DBTITLE 1,Main
+import json
+import re
+
+# Remove the file extension from the interface file name
+interface_file_name_without_extension = interface_file_name.rsplit(".", 1)[0]
+
+# Retrieve file name patterns from the data object catalog table
+df = spark.sql(f"SELECT file_name_pattern FROM {knowledge_base_tables['data_object_catalog']}")
+
+# Collect file name patterns into a list
+file_name_pattern_list = [row.file_name_pattern for row in df.collect()]
+
+# Find the matching file pattern for the interface file name
+file_pattern = next(
+    (pattern for pattern in file_name_pattern_list if re.match(pattern, interface_file_name_without_extension)),
+    None,
+)
+
+# Retrieve the object ID from the data object catalog table
+if file_pattern is None:
+    raise ValueError(f"No file pattern found for {interface_file_name}")
+else:
+    object_id = spark.sql(
+        f"""
+        SELECT object_id
+        FROM {knowledge_base_tables['data_object_catalog']}
+        WHERE file_name_pattern = '{file_pattern}'
+        """
+    ).first()["object_id"]
+
+# Generate required parameters
+interface_name = interface_folder_path.split("/")[-1].upper()  # Extract and uppercase the interface name from the folder path
+interface_file_name_no_ext = interface_file_name.rsplit(".", 1)[0]  # Remove the file extension from the interface file name
+yaml_file = f"/{interface_file_name.rsplit('_', 1)[0]}.yaml"  # Generate the YAML file path
+curated_tbl = f"{curated_tbl_prefix}{interface_file_name.rsplit('_', 1)[0].lower()}"  # Generate the curated table name
+source_system = f"{country_name}_{interface_name}"  # Generate the source system name
+
+# Get ADF configuration using regex
+adf_config = get_file_config_by_regex(interface_name, interface_file_name_no_ext)
+adf_config["interface_yaml"] += yaml_file  # Append the YAML file path to the ADF configuration
+
+# Create a dictionary of ADF parameters
+adf_param_dict = {
+    "run_id": run_id,
+    "flow_name": flow_name,
+    "object_id": object_id,
+    "country_name": country_name,
+    "curated_tbl_prefix": curated_tbl_prefix,
+    "step_source": interface_file_name,
+    "interface_folder_path": interface_folder_path,
+    "interface_file_name": interface_file_name,
+    "source_system": source_system,
+    "curated_tbl": curated_tbl,
+    "ingestion_notebook": ingestion_notebook,
+    "knowledge_base_tables": knowledge_base_tables,
+    "result_transcription_tables": result_transcription_tables,
+}
+
+# Combine cloud YAML configurations, ADF configuration, and ADF parameters into a result dictionary
+result_dict = {
+    **cloud_yaml_configs,
+    **adf_config,
+    **adf_param_dict,
+    **file_paths,
+    **config_paths,
+}
+
+# Exit the notebook and return the result dictionary as a JSON string
+dbutils.notebook.exit(json.dumps([result_dict], default=str))
