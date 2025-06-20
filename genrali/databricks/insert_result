@@ -1,0 +1,102 @@
+# Databricks notebook source
+# DBTITLE 1,Result Transcription
+from typing import Optional
+from datetime import datetime, date
+from pydantic import BaseModel
+
+# Define a Pydantic model for the input data
+class ResultTranscript(BaseModel):
+    run_id: Optional[str]
+    run_date: Optional[date]
+    flow_name: Optional[str]
+    object_id: Optional[int]
+    source_name: Optional[str]
+    step_name: Optional[str]
+    step_source: Optional[str]
+    step_status: Optional[str]
+    step_rows_write: Optional[int]
+    step_error: Optional[str]
+    step_start_ts: Optional[datetime]
+    step_end_ts: Optional[datetime]
+    fdp_flow_statistics: Optional[str]
+    action_id: Optional[str]
+    mapping_id: Optional[int]
+    execution_timestamp: Optional[datetime]
+    ok_count: Optional[int]
+    warning_count: Optional[int]
+    ko_count: Optional[int]
+    control_execution_tbl: Optional[str]
+
+# Function to insert data into the fdp_flow_statistics table
+def insert_fdp_flow_statistics(insert_script_dict):
+    try:
+        # Validate and parse the input data using the Pydantic model
+        data = ResultTranscript(**insert_script_dict)
+
+        # Construct the SQL query for inserting data
+        query = f"""
+            INSERT INTO {data.fdp_flow_statistics} (
+                run_id,
+                run_date,
+                flow_name,
+                object_id,
+                source_name,
+                step_name,
+                step_source,
+                step_status,
+                step_rows_write,
+                step_error,
+                step_start_ts,
+                step_end_ts
+            )
+            VALUES (
+                '{data.run_id}',
+                '{data.run_date}',
+                '{data.flow_name}',
+                {data.object_id},
+                '{data.source_name}',
+                '{data.step_name}',
+                '{data.step_source}',
+                '{data.step_status}',
+                {data.step_rows_write},
+                {f"'{data.step_error}'" if data.step_error else "NULL"},
+                '{data.step_start_ts}',
+                '{data.step_end_ts}'
+            )
+        """
+        # Execute the SQL query using Spark SQL
+        spark.sql(query)
+    except Exception as e:
+        # Print the error message if an exception occurs
+        print(f"An error occurred: {e}")
+
+# Function to insert data into the control_execution table
+def insert_control_execution(insert_control_execution_dict):
+    try:
+        # Validate and parse the input data using the Pydantic model
+        data = ResultTranscript(**insert_control_execution_dict)
+
+        # Construct the SQL query to insert data into the specified control execution table
+        query = f"""
+            INSERT INTO {data.control_execution_tbl} (
+                action_id,
+                mapping_id,
+                execution_timestamp,
+                ok_count,
+                warning_count,
+                ko_count
+            )
+            VALUES (
+                '{data.action_id}',
+                {data.mapping_id},
+                '{data.execution_timestamp}',
+                {data.ok_count},
+                {data.warning_count},
+                {data.ko_count}
+            )
+        """
+        # Execute the SQL query using Spark SQL
+        spark.sql(query)
+    except Exception as e:
+        # Print the error message if an exception occurs during the SQL execution
+        print(f"An error occurred: {e}")
