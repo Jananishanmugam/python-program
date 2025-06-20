@@ -1,0 +1,87 @@
+# Databricks notebook source
+# DBTITLE 1,Databricks Parameters
+dbutils.widgets.text("Source_System", "")
+dbutils.widgets.text("Run_Id", "")
+
+Source_System = dbutils.widgets.get("Source_System")
+Run_Id = dbutils.widgets.get("Run_Id")
+
+# COMMAND ----------
+
+# DBTITLE 1,Get CL Parameters
+# MAGIC %run ../00_configs/00_consumption/00_consumption_config
+
+# COMMAND ----------
+
+# DBTITLE 1,Get Standard Paramters
+# MAGIC %run ../00_configs/00_audit/00_fdp_adf_flow_params_config
+
+# COMMAND ----------
+
+# DBTITLE 1,Read Data
+df_sap_col = spark.sql(
+    f"""
+    SELECT
+    { ", ".join(
+        [f"{src} AS {alias}" for src, alias in zip(cl_cols, outbound_cols)]
+    ) } -- pairs elements from two lists & formats each pair into aliasing expression
+    FROM
+    { consumption_table }
+    WHERE
+    Source_System = '{Source_System}'
+    AND Run_Id = '{Run_Id}'
+  """
+)
+df_sap_col.cache()
+total_records = df_sap_col.count()
+print(total_records)
+
+# Setting the paths
+directory = f"fdp_global_{domain}_{country_name}/{Run_Id}_{Source_System}"
+file_path = f"{tgt_location_path}/{directory}"
+
+# COMMAND ----------
+
+# DBTITLE 1,Main Block
+# Write data from df_sap_col dataframe to ADLS as CSV files with max size of 500MB per file
+df_sap_col.repartition(
+    max(int(df_sap_col.count() / repartition_value) + 1, 1)
+).write.option("header", f"{include_header}").option(
+    "delimiter", f"{delimiter}"
+).option(
+    "quoteAll", f"{quote_all_flag}".lower()
+).option(
+    "maxRecordsPerFile", maxRecordsPerFile
+).mode(
+    file_mode
+).csv(
+    file_path
+)
+
+# Rename part files to meaningful names
+files = dbutils.fs.ls(file_path)
+part_files = [file.path for file in files if file.path.endswith(".csv")]
+
+for i, part_file in enumerate(part_files):
+    timestamp_formatted = datetime.now().strftime("%Y%m%d%H%M%S")
+    new_file_name = f"{file_path}/fdp_global_{domain}_{country_name}_pgid{i+1}_{timestamp_formatted}.{output_file_format}"
+    dbutils.fs.mv(part_file, new_file_name)
+
+# COMMAND ----------
+
+# DBTITLE 1,Copy Files to Outbound Path
+# Move files to outbound path
+files = dbutils.fs.ls(file_path)
+csv_files = [file.path for file in files if file.path.endswith(".csv")]
+
+for csv_file in csv_files:
+    dbutils.fs.mv(csv_file, outbound_path)
+
+# COMMAND ----------
+
+# DBTITLE 1,Delete Files
+# Delete intermediate folders and files
+dbutils.fs.rm(file_path, True)
+print(
+    f"Files moved to outbound path: {outbound_path} and temp directories deleted successfully."
+)
