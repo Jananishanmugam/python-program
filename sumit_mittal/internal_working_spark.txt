@@ -1,0 +1,34 @@
+Internal working of Apache Spark (don't forget to save it)
+
+𝐀𝐩𝐚𝐜𝐡𝐞 𝐒𝐩𝐚𝐫𝐤 works on the principle of in-memory computation making it 100x faster and a highly performant distributed framework.
+
+Here is a detailed explanation on what happens internally when a spark job is executed using the spark-submit command - 📋
+
+𝐒𝐭𝐞𝐩 1 : Client application initiates the execution of spark job using the 𝐒𝐩𝐚𝐫𝐤-𝐒𝐮𝐛𝐦𝐢𝐭 command.
+
+𝐒𝐭𝐞𝐩 2 : The request first hits the Cluster/Resource Manager which launches an Application Master with an AM container and the Spark Driver.
+
+𝐒𝐭𝐞𝐩 3 : Driver program runs the main method. It creates a Spark Context/Session that would be active until the application’s lifecycle. 
+
+The Spark Context helps create the 𝐃𝐢𝐫𝐞𝐜𝐭𝐞𝐝 𝐀𝐜𝐲𝐜𝐥𝐢𝐜 𝐆𝐫𝐚𝐩𝐡(𝐃𝐀𝐆) based on the transformations in the running program that consists of the RDD lineages.
+
+Once an action is encountered, a Job is created and submitted to DAG Scheduler. 
+
+𝐃𝐀𝐆 𝐒𝐜𝐡𝐞𝐝𝐮𝐥𝐞𝐫 🧮 then divides the graph into different stages, which are further divided into Tasks. 
+
+Tasks are then submitted to the 𝐓𝐚𝐬𝐤 𝐒𝐜𝐡𝐞𝐝𝐮𝐥𝐞𝐫 🕒 which launches the tasks via the Cluster Manager on the different worker nodes and the executors execute these jobs.
+
+𝐒𝐭𝐞𝐩 4 : Spark Driver requests the resource manager for resources to be allocated for the execution of the tasks.
+
+𝐒𝐭𝐞𝐩 5 : The Resource Manager then allocates the worker nodes with the requested number of executors for further processing.
+
+𝐒𝐭𝐞𝐩 6 : The Spark Driver then submits the code and dependencies to the executors where the execution of tasks takes place.
+
+For more of such interesting content on Big Data Technologies, follow Sumit Mittal
+
+PS ~ New batch of my Ultimate Master Program (Cloud Focused) is starting on coming Saturday. DM to know more!
+
+hashtag#bigdata hashtag#dataengineer hashtag#apachespark
+Activate to view larger image,
+No alternative text description for this image
+link(https://www.linkedin.com/posts/bigdatabysumit_bigdata-dataengineer-apachespark-activity-7237068688149880833-_hH-/)
