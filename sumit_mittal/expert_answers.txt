@@ -1,0 +1,173 @@
+Here are the expert-level architectural answers to the EPAM interview questions. These responses are structured exactly how an interviewer expects a Senior/Lead Data Engineer or Architect to articulate them—focusing on internal mechanics, trade-offs, and real-world production impacts.
+
+---
+
+## 1. Core Architecture & Execution Engine
+
+### A1. Deep-Dive into Adaptive Query Execution (AQE)
+
+In static optimization (Catalyst), Spark creates an execution plan based on initial file-level statistics. However, once transformations (like filters or joins) begin, those statistics become inaccurate. **AQE solves this by re-optimizing the query plan at runtime using statistics collected from completed shuffle stages.**
+
+```
+[Logical Plan] -> [Physical Plan] -> [Execute Shuffle Stage 1] 
+                                              |
+                                      (Collect Stats)
+                                              |
+[Final Execution] <- [Re-optimize Plan] <-----+
+
+```
+
+The three main runtime optimizations are:
+
+1. **Dynamically Coalescing Shuffle Partitions:** If you set `spark.sql.shuffle.partitions=1000` and the output data after a stage is small, AQE will automatically merge small, adjacent shuffle partitions into larger ones at runtime to reduce task scheduling overhead and file fragmentation.
+2. **Dynamically Switching Join Strategies:** If Catalyst originally planned a Sort-Merge Join (SMJ) because a table looked large, but a heavy `filter` clause at runtime reduces the actual dataset size below `spark.sql.autoBroadcastJoinThreshold`, AQE converts the SMJ to a Broadcast Hash Join (BHJ) on the fly, eliminating a costly shuffle phase.
+3. **Dynamically Handling Skew Joins:** AQE monitors shuffle output sizes. If it detects a heavily skewed partition (e.g., much larger than the median partition size), it splits that single skewed partition into multiple sub-partitions and joins them with the corresponding partition of the other table (replicating it if necessary), preventing the "straggler task" problem.
+
+---
+
+### A2. Memory Management & Off-Heap Allocation
+
+Spark splits its JVM heap execution/storage memory (`spark.memory.fraction`, default 60%) into two pools: **Storage Memory** (for cached data) and **Execution Memory** (for shuffles/joins).
+
+* **Java heap space (`java.lang.OutOfMemoryError`)**: This occurs *inside* the JVM. During a heavy shuffle, execution memory demands exceed what the JVM can allocate.
+* *Root cause:* Bad partition sizing, massive data skew, or trying to collect too much data to the driver.
+* *Tuning:* Decrease `spark.memory.storageFraction` to give Execution Memory more room, increase `spark.sql.shuffle.partitions` to break data into smaller chunks, or increase `--executor-memory`.
+
+
+* **Container killed by YARN/K8s for exceeding memory limits**: This is an *OS-level / Container-level* OOM. The total memory used by the JVM process (JVM Heap + Off-Heap Memory) exceeded the physical container limit.
+* *Root cause:* PySpark/UDF usage (Python processes run off-heap), excessive network buffers during intense shuffles, or high concurrency over-allocating native memory.
+* *Tuning:* Increase `spark.executor.memoryOverhead` (default is usually 10% of executor memory or 384MB) to allocate more off-heap buffer space, or reduce `--executor-cores` to lower concurrent thread execution.
+
+
+
+---
+
+### A3. Dynamic Partition Pruning (DPP) Mechanics
+
+DPP optimizes a Join between a large partitioned Fact table and a small Dimension table by injecting a runtime filter.
+
+Instead of scanning the entire Fact table and filtering out rows during the join phase, Spark executes the query on the Dimension table first. It creates a list of matching keys (e.g., specific date IDs matching `region = 'US'`) and **broadcasts this list as a dynamic filter directly to the scan phase of the Fact table**. As a result, Spark only reads the specific physical directory/partitions of the Fact table from disk.
+
+**Architectural Prerequisites for DPP to trigger:**
+
+1. The Fact table **must be partitioned** on the join key.
+2. The join type must be an **Equi-Join (`==`)**.
+3. It must be a **Left-Deep Tree** architecture where the dimension side can be broadcast (`BroadcastHashJoin`).
+
+---
+
+## 2. Advanced Performance Tuning & Troubleshooting
+
+### A4. Combating Extreme Data Skewness
+
+When a few `customer_id` keys hold 80% of the data, they land on the same executor, creating a bottle-neck.
+
+| Strategy | Pros | Cons |
+| --- | --- | --- |
+| **1. Salting the Key** | Highly reliable. Appends a random suffix (e.g., `_0` to `_9`) to the skewed key in the fact table, and explodes/replicates the dimension table keys to match. Spreads the load evenly. | Requires writing custom code/logic; adds boilerplate and increases the memory footprint of the dimension table. |
+| **2. Broadcast Join** | Eliminates shuffle entirely. The skewed rows are evaluated purely in-memory across executors. | Only feasible if the dimension table is small enough to fit into executor memory (`< spark.sql.autoBroadcastJoinThreshold`). |
+| **3. AQE Skew Join** | Completely automated. Handled natively by Spark 3.x without changing code. | Only triggers if skew metrics cross thresholds (`spark.sql.adaptive.skewJoin.skewedPartitionFactor`). May not catch multi-key complex skews seamlessly. |
+
+---
+
+### A5. Coalesce vs. Repartition under the Hood
+
+* **Why `coalesce(100)` is preferred:** `repartition` triggers a full data shuffle across the network to create uniform partitions. `coalesce` avoids a full shuffle; it simply merges adjacent existing partitions on the same executors where possible.
+* **The Hidden Danger of Coalesce:** `coalesce` changes the upstream DAG execution. Because it avoids a shuffle, Spark collapses the upstream stages. If you place `coalesce(100)` immediately after a heavy `filter` that shrank 1000 partitions down, Spark will actually force the *entire* filter operation to execute on only 100 tasks/threads instead of 1000. This dramatically reduces your upstream parallelization and can crash your executors.
+* *Fix:* Use `repartition` if you need to maintain high upstream parallelism before compressing files, or place `coalesce` downstream safely.
+
+---
+
+### A6. Executor Sizing & Cluster Topology
+
+Given a node with 16 vCPUs and 64 GB RAM:
+
+1. **Leave resources for OS / Cluster Manager:** Reserve 1 core and ~4 GB RAM per node for YARN/K8s daemons and OS overhead. This leaves **15 cores and 60 GB RAM**.
+2. **Determine Cores per Executor:** The sweet spot for HDFS/Cloud Storage I/O throughput is **5 cores per executor** (more than 5 leads to severe HDFS write lock contention; fewer than 3 reduces multi-threaded pipelining efficiency).
+
+$$\text{Executors per Node} = \frac{15 \text{ cores}}{5 \text{ cores/executor}} = 3 \text{ executors}$$
+
+
+3. **Determine Memory per Executor:** 
+$$\text{Total Available Memory per Executor} = \frac{60 \text{ GB}}{3 \text{ executors}} = 20 \text{ GB}$$
+
+
+4. **Split Heap vs Overhead:** Allocate 10% for `memoryOverhead` (~2 GB) and the rest to the heap.
+
+* **Final Config:** `--num-executors = (3 * number_of_nodes)`, `--executor-cores = 5`, `--executor-memory = 18G`.
+
+---
+
+## 3. Data Formats & Storage Layer Integration (Delta/Parquet)
+
+### A7. Parquet File Optimization & Predicate Pushdown
+
+Parquet organizes data column-by-column rather than row-by-row.
+
+* **Projection Pushdown (Column Pruning):** Spark reads the schema of the Parquet file footer. If your query is `SELECT name FROM users`, Spark completely skips reading the bytes for all other columns on disk.
+* **Predicate Pushdown:** The Parquet file footer contains metadata for every **Row Group** (typically 128MB–1GB blocks of data), storing the `min` and `max` values for every column inside that group. If your query contains `WHERE age > 30`, Spark reads the metadata first. If a Row Group's metadata shows `min_age=18, max_age=25`, Spark **skips reading that entire block of data off the disk**, entirely bypassing unnecessary I/O.
+
+---
+
+### A8. Delta Lake ACID Mechanics & VACUUM
+
+Delta Lake achieves ACID via a **Transaction Log** (the `_delta_log/` directory containing JSON commit files). Every write operation creates a new JSON commit file (e.g., `000001.json`).
+
+When data is updated or deleted, Delta uses *Copy-on-Write* or *Merge-on-Read*. It doesn't modify existing Parquet files; it writes new Parquet files containing the changes and updates the transaction log to state: *"Ignore old files A and B; read new files C and D instead."*
+
+* **What happens during `VACUUM`?** It physically deletes underlying Parquet files that are no longer referenced in the latest active state of the transaction log and are older than the retention threshold (default 7 days).
+* **Implications on streaming:** If a streaming job or long-running batch job is currently reading a historical view of the data (Time Travel) and `VACUUM` physically deletes those files out from under it, the reading job will crash with a `FileNotFoundException`.
+
+---
+
+## 4. Live Coding / Scenario-Based Problem
+
+### A9. The Cumulative Window Processing Challenge
+
+To solve the 3-day rolling aggregate while managing late data up to 2 hours behind, we must use a **Watermark** alongside a structured time window. In Spark Structured Streaming, we use `expr("3 days")` for the window and `withWatermark` to allow Spark to evict stale state from memory.
+
+#### PySpark Implementation:
+
+```python
+from pyspark.sql import SparkSession
+from pyspark.sql import functions as F
+
+spark = SparkSession.builder \
+    .appName("EPAM_Rolling_Aggregate") \
+    .getOrCreate()
+
+# Assuming 'transaction_stream' is an active Streaming DataFrame
+# Schema: (transaction_id, account_id, timestamp, amount)
+
+processed_stream = transaction_stream \
+    # 1. Define Watermark to handle late data up to 2 hours
+    .withWatermark("timestamp", "2 hours") \
+    # 2. Group by account_id and a sliding window of 3 days, sliding every 1 day
+    .groupBy(
+        F.col("account_id"),
+        F.window(F.col("timestamp"), "3 days", "1 day")
+    ) \
+    .agg(F.sum("amount").alias("total_3_day_amount")) \
+    # 3. Clean up presentation of output
+    .select(
+        F.col("account_id"),
+        F.col("window.start").alias("window_start"),
+        F.col("window.end").alias("window_end"),
+        F.col("total_3_day_amount")
+    )
+
+# Write out to sink using append or update mode
+# Append mode only outputs once the window falls behind the watermark boundary
+query = processed_stream.writeStream \
+    .format("delta") \
+    .outputMode("append") \
+    .option("checkpointLocation", "/mnt/telemetry/checkpoints/") \
+    .start("/mnt/telemetry/output/")
+
+```
+
+**Why this is memory-efficient:** The `.withWatermark("timestamp", "2 hours")` tells the engine that any data older than `current_max_time - 2 hours` can be ignored. Crucially, it tells Spark's state store that once the watermark passes a window's `window_end` timestamp, that window's aggregation state can be safely deleted from the executor's memory, preventing unbounded state growth.
+
+---
+
+Do you want to practice mock-answering a follow-up scenario based on one of these architectural points?
